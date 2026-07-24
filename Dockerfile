@@ -1,7 +1,7 @@
 FROM node:18-alpine
 
-# SQLite3 のネイティブビルドに必要なパッケージをインストール
-RUN apk add --no-cache python3 make g++
+# SQLite3 のネイティブビルドと日本語フォント (font-ipa) のインストール
+RUN apk add --no-cache python3 make g++ font-ipa
 
 WORKDIR /app
 

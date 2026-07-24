@@ -5,6 +5,7 @@ const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,19 +37,64 @@ const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
   });
 });
 
+// -------------------------------------------------------------
+// Nodemailer SMTP設定と送信関数
+// -------------------------------------------------------------
+const smtpHost = process.env.SMTP_HOST;
+const smtpPort = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587;
+const smtpUser = process.env.SMTP_USER;
+const smtpPass = process.env.SMTP_PASS;
+
+let transporter = null;
+
+if (smtpHost && smtpUser && smtpPass) {
+  transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465, // 465ならSSL、その他はSTARTTLS
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  });
+  console.log('SMTP transporter configured successfully.');
+} else {
+  console.log('SMTP variables are not fully configured. Automated emails will be disabled.');
+}
+
+async function sendMail({ to, subject, html, attachments = [] }) {
+  if (!transporter) {
+    console.warn(`[Mail Skipped] SMTP not configured. Mail to ${to} was not sent.`);
+    return false;
+  }
+  try {
+    const info = await transporter.sendMail({
+      from: `"Mini Sign" <${smtpUser}>`,
+      to,
+      subject,
+      html,
+      attachments,
+    });
+    console.log(`Email sent: ${info.messageId} to ${to}`);
+    return true;
+  } catch (err) {
+    console.error(`Failed to send email to ${to}:`, err);
+    return false;
+  }
+}
+
 // Expressの設定
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // 静的ファイルの配信設定
 app.use(express.static(path.join(__dirname, 'public')));
-// アップロードされたPDFファイルを配信するためのパス設定（DATA_DIR基準）
 app.use('/uploads', express.static(path.join(dataDir, 'uploads')));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Multerの設定 (アップロード先を DATA_DIR/uploads に変更)
+// Multerの設定
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dest = path.join(dataDir, 'uploads');
@@ -177,7 +223,7 @@ app.post('/api/contracts/upload', upload.single('pdf'), async (req, res) => {
   }
 });
 
-// 2. 契約送信
+// 2. 契約送信 (署名枠と宛先の保存 + 署名依頼メールの送信)
 app.post('/api/contracts/:id/send', async (req, res) => {
   const contractId = req.params.id;
   const { signerName, signerEmail, fields } = req.body;
@@ -226,6 +272,23 @@ app.post('/api/contracts/:id/send', async (req, res) => {
     const protocol = req.protocol;
     const signUrl = `${protocol}://${host}/sign/${accessToken}`;
 
+    // 署名依頼メールの送信 (非同期)
+    const mailSubject = `【署名依頼】契約書「${contract.title}」への署名をお願いします`;
+    const mailHtml = `
+      <p><strong>${signerName} 様</strong></p>
+      <p>あなた宛てに電子契約システム「Mini Sign」から契約書の署名依頼が届いています。</p>
+      <p>以下のリンクより契約書の内容をご確認の上、署名手続きを行ってください。</p>
+      <p style="margin: 20px 0;">
+        <a href="${signUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-family: sans-serif;">
+          契約書を確認して署名する
+        </a>
+      </p>
+      <p style="font-size: 0.85rem; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 20px;">
+        ※このメールはシステムより自動送信されています。お心当たりがない場合は、恐れ入りますが本メールを破棄してください。
+      </p>
+    `;
+    sendMail({ to: signerEmail, subject: mailSubject, html: mailHtml });
+
     res.json({ success: true, signUrl });
   } catch (err) {
     await dbRun('ROLLBACK');
@@ -234,7 +297,7 @@ app.post('/api/contracts/:id/send', async (req, res) => {
   }
 });
 
-// 3. 署名完了処理
+// 3. 署名完了処理 (PDF合成 + 日本語フォント対応証明書 + 完了メール送信)
 app.post('/api/sign/:token/submit', async (req, res) => {
   const token = req.params.token;
   const { fieldValues } = req.body;
@@ -265,7 +328,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
     );
     await dbRun('COMMIT');
 
-    // PDFへの書き込み処理 (物理ファイルパスを dataDir から解決)
+    // PDFへの書き込み処理
     const originalPdfPath = path.join(dataDir, contract.file_path);
     const pdfBytes = fs.readFileSync(originalPdfPath);
     const pdfDoc = await PDFDocument.load(pdfBytes);
@@ -296,12 +359,28 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       });
     }
 
-    // 合意証明書ページの追加
+    // -------------------------------------------------------------
+    // 合意証明書ページの追加（日本語フォント対応）
+    // -------------------------------------------------------------
     const proofPage = pdfDoc.addPage([595.276, 841.89]);
     const { width: pWidth, height: pHeight } = proofPage.getSize();
-    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    
+    // 日本語フォント (font-ipa) のロード
+    const fontPath = '/usr/share/fonts/font-ipa/ipag.ttf'; // Alpine環境でのインストール先
+    let customFont;
+    if (fs.existsSync(fontPath)) {
+      const fontBytes = fs.readFileSync(fontPath);
+      customFont = await pdfDoc.embedFont(fontBytes);
+      console.log('Successfully loaded custom Japanese font.');
+    } else {
+      // フォールバック
+      customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      console.warn('Japanese font not found. Falling back to Helvetica.');
+    }
+
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+    // タイトル描画
     proofPage.drawText('AGREEMENT CERTIFICATE', {
       x: 50,
       y: pHeight - 80,
@@ -313,7 +392,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       x: 50,
       y: pHeight - 105,
       size: 10,
-      font: helveticaFont,
+      font: helveticaBold,
     });
 
     proofPage.drawLine({
@@ -346,11 +425,12 @@ app.post('/api/sign/:token/submit', async (req, res) => {
         displayValue = displayValue.substring(0, 60) + '...';
       }
 
+      // 日本語文字を含む可能性がある値には customFont を使用する
       proofPage.drawText(displayValue, {
         x: 180,
         y: currentY,
         size: 11,
-        font: helveticaFont,
+        font: customFont,
       });
       currentY -= 30;
     }
@@ -364,14 +444,13 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       x: 50,
       y: 80,
       size: 8,
-      font: helveticaFont,
+      font: customFont,
     });
 
     const signedPdfBytes = await pdfDoc.save();
     const signedFileName = `signed-${contract.id}.pdf`;
     const signedFilePath = `/uploads/signed/${signedFileName}`;
     
-    // 保存先の物理フルパスを定義
     const signedFullPath = path.join(dataDir, 'uploads', 'signed', signedFileName);
     const signedFullPathDir = path.dirname(signedFullPath);
     if (!fs.existsSync(signedFullPathDir)) {
@@ -385,6 +464,38 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       ['SIGNED', signedFilePath, now, contract.id]
     );
 
+    // -------------------------------------------------------------
+    // 締結完了メール送信 (PDFを添付)
+    // -------------------------------------------------------------
+    const pdfAttachment = {
+      filename: `${contract.title}_signed.pdf`,
+      path: signedFullPath,
+    };
+
+    // 1. 署名者への通知
+    const signerMailSubject = `【契約締結完了】「${contract.title}」の署名手続きが完了しました`;
+    const signerMailHtml = `
+      <p><strong>${signer.name} 様</strong></p>
+      <p>契約書「${contract.title}」の署名手続きが完了し、契約が正式に締結されました。</p>
+      <p>合意証明書が含まれる締結済みのPDFを本メールに添付いたしましたので、大切に保管してください。</p>
+      <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+      <p style="font-size: 0.85rem; color: #6b7280;">※本メールはシステムより自動送信されています。</p>
+    `;
+    sendMail({ to: signer.email, subject: signerMailSubject, html: signerMailHtml, attachments: [pdfAttachment] });
+
+    // 2. 送信者 (管理者) への通知
+    if (smtpUser) {
+      const ownerMailSubject = `【契約締結完了】「${contract.title}」が締結されました（相手方: ${signer.name} 様）`;
+      const ownerMailHtml = `
+        <p>管理者 様</p>
+        <p>送信した契約書「${contract.title}」の署名手続きが <strong>${signer.name} 様</strong> により完了し、契約が締結されました。</p>
+        <p>合意証明書が含まれる締結済みのPDFを本メールに添付いたしましたので、ご確認ください。</p>
+        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+        <p style="font-size: 0.85rem; color: #6b7280;">※本メールはシステムより自動送信されています。</p>
+      `;
+      sendMail({ to: smtpUser, subject: ownerMailSubject, html: ownerMailHtml, attachments: [pdfAttachment] });
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -392,7 +503,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   }
 });
 
-// 契約書削除API (物理ファイルパスを dataDir から解決)
+// 契約書削除API
 app.post('/api/contracts/:id/delete', async (req, res) => {
   try {
     const contract = await dbGet('SELECT * FROM contracts WHERE id = ?', [req.params.id]);
