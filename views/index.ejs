@@ -1,0 +1,205 @@
+<%- include('partials/header', { title: 'ダッシュボード' }) %>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+  <div>
+    <h1>契約書ダッシュボード</h1>
+    <p>契約書のアップロード、送信、締結状況の管理をここで行います。</p>
+  </div>
+  <button class="btn btn-primary" onclick="openModal()">
+    <i data-lucide="plus"></i>
+    新規契約書をアップロード
+  </button>
+</div>
+
+<div class="glass-card">
+  <% if (contracts.length === 0) { %>
+    <div style="text-align: center; padding: 3rem 1rem; color: var(--text-secondary);">
+      <i data-lucide="file-text" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
+      <p style="margin-bottom: 0;">アップロードされた契約書はありません。新規作成から開始してください。</p>
+    </div>
+  <% } else { %>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>契約書タイトル</th>
+            <th>宛先 (署名者)</th>
+            <th>ステータス</th>
+            <th>作成日時</th>
+            <th style="text-align: right;">アクション</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% contracts.forEach(contract => { %>
+            <tr>
+              <td style="font-weight: 600;"><%= contract.title %></td>
+              <td>
+                <% if (contract.signer_name) { %>
+                  <div style="font-weight: 500;"><%= contract.signer_name %></div>
+                  <div style="font-size: 0.8rem; color: var(--text-secondary);"><%= contract.signer_email %></div>
+                <% } else { %>
+                  <span style="color: var(--text-muted); font-size: 0.85rem;">未設定</span>
+                <% } %>
+              </td>
+              <td>
+                <% if (contract.status === 'DRAFT') { %>
+                  <span class="badge badge-draft">下書き</span>
+                <% } else if (contract.status === 'SENT') { %>
+                  <span class="badge badge-sent">先方確認中</span>
+                <% } else if (contract.status === 'SIGNED') { %>
+                  <span class="badge badge-signed">締結完了</span>
+                <% } else { %>
+                  <span class="badge badge-draft"><%= contract.status %></span>
+                <% } %>
+              </td>
+              <td style="font-size: 0.85rem; color: var(--text-secondary);">
+                <%= new Date(contract.created_at).toLocaleString('ja-JP') %>
+              </td>
+              <td style="text-align: right;">
+                <div style="display: inline-flex; gap: 0.5rem; justify-content: flex-end;">
+                  <% if (contract.status === 'DRAFT') { %>
+                    <a href="/contracts/edit/<%= contract.id %>" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                      <i data-lucide="edit" style="width: 14px; height: 14px;"></i> 編集
+                    </a>
+                  <% } else { %>
+                    <a href="/contracts/detail/<%= contract.id %>" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                      <i data-lucide="eye" style="width: 14px; height: 14px;"></i> 詳細
+                    </a>
+                  <% } %>
+
+                  <% if (contract.status === 'SIGNED' && contract.signed_file_path) { %>
+                    <a href="<%= contract.signed_file_path %>" download class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--color-secondary);">
+                      <i data-lucide="download" style="width: 14px; height: 14px;"></i> ダウンロード
+                    </a>
+                  <% } %>
+
+                  <button onclick="deleteContract('<%= contract.id %>')" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<!-- 新規アップロードモーダル -->
+<div class="modal-backdrop" id="uploadModal" onclick="closeModalOnBackdrop(event)">
+  <div class="modal-content">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h2 style="margin-bottom: 0;">契約書PDFアップロード</h2>
+      <button class="btn btn-secondary" onclick="closeModal()" style="padding: 0.25rem 0.5rem; border: none; background: transparent;">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    
+    <form id="uploadForm" onsubmit="handleUpload(event)">
+      <div class="form-group">
+        <label for="contractTitle">契約書名 (未入力の場合はファイル名)</label>
+        <input type="text" id="contractTitle" placeholder="例: 機密保持契約書_株式会社◯◯">
+      </div>
+      
+      <div class="form-group">
+        <label for="pdfFile">PDFファイル <span style="color: var(--color-danger);">*</span></label>
+        <input type="file" id="pdfFile" accept="application/pdf" required>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 2rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <i data-lucide="upload" style="width: 16px; height: 16px;"></i> アップロード
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openModal() {
+    const modal = document.getElementById('uploadModal');
+    modal.classList.add('show');
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('uploadModal');
+    modal.classList.remove('show');
+    document.getElementById('uploadForm').reset();
+  }
+
+  function closeModalOnBackdrop(event) {
+    if (event.target === document.getElementById('uploadModal')) {
+      closeModal();
+    }
+  }
+
+  async function handleUpload(event) {
+    event.preventDefault();
+    const title = document.getElementById('contractTitle').value;
+    const fileInput = document.getElementById('pdfFile');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+      alert('PDFファイルを選択してください。');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> アップロード中...';
+    lucide.createIcons();
+
+    const formData = new FormData();
+    formData.append('pdf', fileInput.files[0]);
+    formData.append('title', title);
+
+    try {
+      const response = await fetch('/api/contracts/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        // 編集画面へ遷移
+        window.location.href = `/contracts/edit/${result.id}`;
+      } else {
+        alert('アップロード失敗: ' + (result.error || '不明なエラー'));
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i data-lucide="upload" style="width: 16px; height: 16px;"></i> アップロード';
+        lucide.createIcons();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i data-lucide="upload" style="width: 16px; height: 16px;"></i> アップロード';
+      lucide.createIcons();
+    }
+  }
+
+  async function deleteContract(id) {
+    if (!confirm('この契約書を削除しますか？紐づく署名情報やPDFも完全に削除されます。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/contracts/${id}/delete`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        const result = await response.json();
+        alert('削除失敗: ' + (result.error || '不明なエラー'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+    }
+  }
+</script>
+
+<%- include('partials/footer') %>

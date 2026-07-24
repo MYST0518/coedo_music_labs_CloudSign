@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: mini-sign
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free # 無料枠プラン
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: mini-sign-data
+      mountPath: /data
+      sizeGB: 1 # 無料枠は通常1GB〜 (または安価な最小ディスク)

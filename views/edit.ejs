@@ -1,0 +1,345 @@
+<%- include('partials/header', { title: '契約書編集' }) %>
+
+<div style="margin-bottom: 1.5rem;">
+  <a href="/" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; margin-bottom: 1rem;">
+    <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> ダッシュボードに戻る
+  </a>
+  <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+      <h1>契約書へのフィールド配置</h1>
+      <p style="margin-bottom: 0;">契約相手（署名者）が入力・署名するエリアをPDF上にドラッグして配置してください。</p>
+    </div>
+    <div style="font-weight: 500; font-size: 0.9rem; color: var(--text-secondary);">
+      書類: <span style="color: #fff;"><%= contract.title %></span>
+    </div>
+  </div>
+</div>
+
+<div class="editor-layout">
+  <!-- PDF表示エリア -->
+  <div class="pdf-viewer-panel" id="pdf-viewer-panel">
+    <div id="pdf-viewer">
+      <!-- PDFの各ページが動的にレンダリングされます -->
+      <div id="loading-indicator" style="text-align: center; margin-top: 3rem;">
+        <i data-lucide="loader" class="animate-spin" style="width: 32px; height: 32px; color: var(--color-primary); margin-bottom: 1rem;"></i>
+        <p>PDFドキュメントをレンダリングしています...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 操作サイドバー -->
+  <div class="sidebar-panel">
+    <div class="glass-card" style="padding: 1.5rem;">
+      <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="layout-template" style="color: var(--color-primary);"></i>
+        フィールドの追加
+      </h3>
+      <p style="font-size: 0.8rem; margin-bottom: 1rem;">
+        以下のアイテムを左側のPDFプレビュー上の配置したい場所にドラッグ＆ドロップしてください。
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div class="draggable-field-source" draggable="true" data-type="signature">
+          <i data-lucide="pen-tool" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px;"></i>
+          署名枠を追加
+        </div>
+        <div class="draggable-field-source" draggable="true" data-type="text">
+          <i data-lucide="type" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px;"></i>
+          テキスト入力
+        </div>
+        <div class="draggable-field-source" draggable="true" data-type="date">
+          <i data-lucide="calendar" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px;"></i>
+          日付枠を追加
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card" style="padding: 1.5rem;">
+      <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="send" style="color: var(--color-secondary);"></i>
+        宛先設定と送信
+      </h3>
+      
+      <form id="sendForm" onsubmit="handleSend(event)">
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="signerName">署名者の氏名 <span style="color: var(--color-danger);">*</span></label>
+          <input type="text" id="signerName" placeholder="例: 山田 太郎" required>
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 1.5rem;">
+          <label for="signerEmail">署名者のメールアドレス <span style="color: var(--color-danger);">*</span></label>
+          <input type="email" id="signerEmail" placeholder="example@domain.com" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%;" id="sendBtn">
+          <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+          契約送信を実行
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- PDF.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+  const pdfUrl = '<%= contract.file_path %>';
+  const contractId = '<%= contract.id %>';
+  let placedFields = []; // 配置されたフィールドの配列
+  let fieldCounter = 0;
+  let draggedType = null;
+
+  // フィールドの標準サイズ (px)
+  const fieldSizes = {
+    signature: { width: 140, height: 60 },
+    text: { width: 160, height: 32 },
+    date: { width: 120, height: 32 }
+  };
+
+  // PDF読み込み・表示処理
+  const loadingTask = pdfjsLib.getDocument(pdfUrl);
+  loadingTask.promise.then(async (pdf) => {
+    document.getElementById('loading-indicator').remove();
+    const container = document.getElementById('pdf-viewer');
+    const numPages = pdf.numPages;
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      // 標準A4を基準に適切な表示サイズにするためスケール調整 (1.2程度)
+      const viewport = page.getViewport({ scale: 1.25 });
+
+      // ページコンテナ作成
+      const pageContainer = document.createElement('div');
+      pageContainer.className = 'pdf-page-container';
+      pageContainer.dataset.page = pageNum;
+      pageContainer.style.width = viewport.width + 'px';
+      pageContainer.style.height = viewport.height + 'px';
+
+      // HTML5 Canvas 作成
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      pageContainer.appendChild(canvas);
+      container.appendChild(pageContainer);
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      // ドロップ受け入れ設定
+      initDropZone(pageContainer);
+    }
+    
+    // アイコン再描画
+    lucide.createIcons();
+  }).catch(err => {
+    console.error('PDF render error:', err);
+    alert('PDFの読み込みに失敗しました。');
+  });
+
+  // ドラッグ開始のイベントハンドラー
+  const sources = document.querySelectorAll('.draggable-field-source');
+  sources.forEach(source => {
+    source.addEventListener('dragstart', (e) => {
+      draggedType = source.dataset.type;
+      e.dataTransfer.setData('text/plain', draggedType);
+    });
+  });
+
+  // ページ上のドロップ設定
+  function initDropZone(pageContainer) {
+    pageContainer.addEventListener('dragover', (e) => {
+      e.preventDefault(); // ドロップを許可
+    });
+
+    pageContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData('text/plain') || draggedType;
+      if (!type) return;
+
+      const rect = pageContainer.getBoundingClientRect();
+      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+      // マウス位置の算出 (スクロール考慮)
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      createField(pageContainer, type, x, y);
+    });
+  }
+
+  // フィールドのDOM要素を作成し配置
+  function createField(pageContainer, type, x, y, initialData = null) {
+    const pageNum = parseInt(pageContainer.dataset.page);
+    const size = fieldSizes[type];
+    
+    // フィールド枠がページ外にはみ出ないように座標を調整
+    const pWidth = pageContainer.clientWidth;
+    const pHeight = pageContainer.clientHeight;
+    
+    let targetX = x - (size.width / 2);
+    let targetY = y - (size.height / 2);
+    
+    if (targetX < 0) targetX = 0;
+    if (targetY < 0) targetY = 0;
+    if (targetX + size.width > pWidth) targetX = pWidth - size.width;
+    if (targetY + size.height > pHeight) targetY = pHeight - size.height;
+
+    const fieldId = initialData ? initialData.id : 'f_' + (++fieldCounter);
+
+    const fieldEl = document.createElement('div');
+    fieldEl.className = 'placed-field';
+    fieldEl.id = fieldId;
+    fieldEl.style.width = size.width + 'px';
+    fieldEl.style.height = size.height + 'px';
+    fieldEl.style.left = targetX + 'px';
+    fieldEl.style.top = targetY + 'px';
+
+    // 表示用ラベル
+    const labelMap = { signature: '署名欄', text: 'テキスト入力', date: '日付欄' };
+    fieldEl.innerHTML = `
+      <span>${labelMap[type]}</span>
+      <button class="delete-btn" type="button" onclick="deleteField('${fieldId}')">&times;</button>
+    `;
+
+    pageContainer.appendChild(fieldEl);
+
+    // 比率の計算
+    const xRatio = targetX / pWidth;
+    const yRatio = targetY / pHeight;
+    const widthRatio = size.width / pWidth;
+    const heightRatio = size.height / pHeight;
+
+    const fieldData = {
+      id: fieldId,
+      type: type,
+      pageNumber: pageNum,
+      xRatio: xRatio,
+      yRatio: yRatio,
+      widthRatio: widthRatio,
+      heightRatio: heightRatio
+    };
+
+    placedFields.push(fieldData);
+    
+    // マウスドラッグでの移動処理
+    makeDraggable(fieldEl, pageContainer, fieldData);
+  }
+
+  // 配置済みフィールドをドラッグで移動できるようにする
+  function makeDraggable(element, container, data) {
+    let isDragging = false;
+    let startX, startY;
+    let initialLeft, initialTop;
+
+    element.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('delete-btn')) return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      initialLeft = parseFloat(element.style.left);
+      initialTop = parseFloat(element.style.top);
+      element.style.zIndex = 1000;
+      
+      e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+      
+      const cWidth = container.clientWidth;
+      const cHeight = container.clientHeight;
+      const elWidth = element.clientWidth;
+      const elHeight = element.clientHeight;
+      
+      if (newLeft < 0) newLeft = 0;
+      if (newTop < 0) newTop = 0;
+      if (newLeft + elWidth > cWidth) newLeft = cWidth - elWidth;
+      if (newTop + elHeight > cHeight) newTop = cHeight - elHeight;
+      
+      element.style.left = newLeft + 'px';
+      element.style.top = newTop + 'px';
+      
+      // 比率を更新
+      data.xRatio = newLeft / cWidth;
+      data.yRatio = newTop / cHeight;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        element.style.zIndex = '';
+      }
+    });
+  }
+
+  // フィールドの削除
+  window.deleteField = function(fieldId) {
+    const el = document.getElementById(fieldId);
+    if (el) el.remove();
+    placedFields = placedFields.filter(f => f.id !== fieldId);
+  };
+
+  // 送信処理
+  async function handleSend(event) {
+    event.preventDefault();
+    const signerName = document.getElementById('signerName').value.trim();
+    const signerEmail = document.getElementById('signerEmail').value.trim();
+    const sendBtn = document.getElementById('sendBtn');
+
+    if (placedFields.length === 0) {
+      alert('PDF上に署名欄などのフィールドを1つ以上配置してください。');
+      return;
+    }
+
+    if (!confirm('この内容で署名依頼を送信（発行）しますか？')) {
+      return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> 送信中...';
+    lucide.createIcons();
+
+    try {
+      const response = await fetch(`/api/contracts/${contractId}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signerName,
+          signerEmail,
+          fields: placedFields
+        })
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert('署名依頼を作成しました。');
+        // 詳細画面へリダイレクト
+        window.location.href = `/contracts/detail/${contractId}`;
+      } else {
+        alert('送信失敗: ' + (result.error || '不明なエラー'));
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i data-lucide="send" style="width: 16px; height: 16px;"></i> 契約送信を実行';
+        lucide.createIcons();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = '<i data-lucide="send" style="width: 16px; height: 16px;"></i> 契約送信を実行';
+      lucide.createIcons();
+    }
+  }
+</script>
+<%- include('partials/footer') %>

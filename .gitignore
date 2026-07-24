@@ -1,0 +1,6 @@
+node_modules/
+contracts.db
+uploads/
+test_contract.pdf
+.DS_Store
+.env

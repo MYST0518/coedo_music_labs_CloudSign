@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Mini Sign</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <!-- Lucide アイコンをCDNからロード -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">
+      <i data-lucide="shield-check"></i>
+      <span>Mini Sign</span>
+    </a>
+    <div class="header-actions">
+      <span class="badge badge-draft" style="text-transform: none; font-size: 0.8rem;">
+        <i data-lucide="server" style="width: 12px; height: 12px; vertical-align: middle; margin-right: 4px;"></i>
+        Self-Hosted Mode
+      </span>
+    </div>
+  </header>
+  <main class="container">

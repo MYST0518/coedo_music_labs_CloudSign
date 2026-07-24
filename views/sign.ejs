@@ -1,0 +1,464 @@
+<%- include('partials/header', { title: '契約書への署名' }) %>
+
+<div style="margin-bottom: 1.5rem;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+      <h1>署名手続き</h1>
+      <p style="margin-bottom: 0;">以下の手順に沿って、契約内容を確認し、指定のエリアに署名を行ってください。</p>
+    </div>
+    <div style="font-weight: 500; font-size: 0.9rem; color: var(--text-secondary);">
+      書類: <span style="color: #fff;"><%= contract.title %></span>
+    </div>
+  </div>
+</div>
+
+<div class="editor-layout">
+  <!-- PDF表示エリア -->
+  <div class="pdf-viewer-panel" id="pdf-viewer-panel">
+    <div id="pdf-viewer" style="position: relative;">
+      <!-- PDFの各ページが動的にレンダリングされます -->
+      <div id="loading-indicator" style="text-align: center; margin-top: 3rem;">
+        <i data-lucide="loader" class="animate-spin" style="width: 32px; height: 32px; color: var(--color-primary); margin-bottom: 1rem;"></i>
+        <p>契約書ドキュメントを読み込んでいます...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 署名手順アクションパネル -->
+  <div class="sidebar-panel">
+    <div class="glass-card" style="padding: 1.5rem;">
+      <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="info" style="color: var(--color-primary);"></i>
+        署名手順
+      </h3>
+      
+      <ol style="padding-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
+        <li>左側の書面をスクロールして内容をご確認ください。</li>
+        <li><span style="color: var(--color-warning); font-weight: 600;">オレンジ色で縁取られた枠</span>をクリックして、サインやテキストを入力してください。</li>
+        <li>すべての入力が完了したら、同意チェックをして締結を実行します。</li>
+      </ol>
+
+      <div style="border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+        <div style="display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 1.25rem;">
+          <input type="checkbox" id="agreementCheck" style="margin-top: 3px; cursor: pointer;">
+          <label for="agreementCheck" style="font-size: 0.85rem; cursor: pointer; color: var(--text-primary); line-height: 1.4;">
+            契約書の内容に同意し、電子署名を付与して契約を締結することに同意します。
+          </label>
+        </div>
+
+        <button onclick="submitSignature()" class="btn btn-primary" style="width: 100%; background: var(--color-secondary); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);" id="submitBtn">
+          <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
+          同意して契約を締結する
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 署名入力用モーダル (手書き用) -->
+<div class="modal-backdrop" id="signatureModal" onclick="closeModalOnBackdrop(event, 'signatureModal')">
+  <div class="modal-content" style="max-width: 450px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h3 style="margin-bottom: 0; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="pen-tool" style="color: var(--color-primary);"></i>
+        手書き署名を入力
+      </h3>
+      <button class="btn btn-secondary" onclick="closeModal('signatureModal')" style="padding: 0.25rem 0.5rem; border: none; background: transparent;">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    
+    <div class="signature-pad-container">
+      <canvas id="sig-canvas"></canvas>
+    </div>
+    
+    <div class="signature-pad-actions">
+      <button type="button" class="btn btn-secondary" onclick="clearSignatureCanvas()">
+        <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> クリア
+      </button>
+      <button type="button" class="btn btn-primary" onclick="saveSignature()">
+        署名を適用
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- テキスト入力用モーダル -->
+<div class="modal-backdrop" id="textModal" onclick="closeModalOnBackdrop(event, 'textModal')">
+  <div class="modal-content" style="max-width: 400px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h3 style="margin-bottom: 0; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="type" style="color: var(--color-primary);"></i>
+        テキスト入力
+      </h3>
+      <button class="btn btn-secondary" onclick="closeModal('textModal')" style="padding: 0.25rem 0.5rem; border: none; background: transparent;">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+    
+    <div class="form-group">
+      <label id="textInputLabel" for="modalTextInput">入力値</label>
+      <input type="text" id="modalTextInput" placeholder="入力してください">
+    </div>
+    
+    <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+      <button type="button" class="btn btn-secondary" onclick="closeModal('textModal')">キャンセル</button>
+      <button type="button" class="btn btn-primary" onclick="saveTextInput()">適用</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+  const pdfUrl = '<%= contract.file_path %>';
+  const token = '<%= signer.access_token %>';
+  const serverFields = <%- JSON.stringify(fields) %>; // サーバーから渡されたフィールド位置リスト
+  
+  // 入力された値を保持するオブジェクト { fieldId: { value: '...', type: '...' } }
+  const userInputData = {}; 
+  let activeFieldId = null;
+
+  // 1. PDF読み込み・表示処理
+  const loadingTask = pdfjsLib.getDocument(pdfUrl);
+  loadingTask.promise.then(async (pdf) => {
+    document.getElementById('loading-indicator').remove();
+    const container = document.getElementById('pdf-viewer');
+    const numPages = pdf.numPages;
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.25 });
+
+      // ページコンテナ作成
+      const pageContainer = document.createElement('div');
+      pageContainer.className = 'pdf-page-container';
+      pageContainer.dataset.page = pageNum;
+      pageContainer.style.width = viewport.width + 'px';
+      pageContainer.style.height = viewport.height + 'px';
+
+      // Canvas
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      pageContainer.appendChild(canvas);
+      container.appendChild(pageContainer);
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      // 該当ページの入力枠を描画
+      renderFieldsForPage(pageContainer, pageNum);
+    }
+    
+    lucide.createIcons();
+  }).catch(err => {
+    console.error('PDF render error:', err);
+    alert('PDFの読み込みに失敗しました。');
+  });
+
+  // ページ上の入力枠を描画
+  function renderFieldsForPage(pageContainer, pageNum) {
+    const pWidth = pageContainer.clientWidth;
+    const pHeight = pageContainer.clientHeight;
+
+    const pageFields = serverFields.filter(f => f.page_number === pageNum);
+
+    pageFields.forEach(field => {
+      const x = field.x_ratio * pWidth;
+      const y = field.y_ratio * pHeight;
+      const w = field.width_ratio * pWidth;
+      const h = field.height_ratio * pHeight;
+
+      const fieldEl = document.createElement('div');
+      fieldEl.className = 'signer-input-field';
+      fieldEl.id = field.id;
+      fieldEl.style.left = x + 'px';
+      fieldEl.style.top = y + 'px';
+      fieldEl.style.width = w + 'px';
+      fieldEl.style.height = h + 'px';
+
+      let labelText = '';
+      if (field.type === 'signature') labelText = '署名 (クリック)';
+      else if (field.type === 'text') labelText = 'テキスト (クリック)';
+      else if (field.type === 'date') labelText = '日付 (クリック)';
+
+      fieldEl.innerHTML = `<span class="field-label">${labelText}</span>`;
+
+      // クリックイベントを設定して入力モーダルを表示
+      fieldEl.addEventListener('click', () => {
+        handleFieldClick(field.id, field.type, w, h);
+      });
+
+      pageContainer.appendChild(fieldEl);
+
+      // 初期値データ設定
+      userInputData[field.id] = {
+        type: field.type,
+        width: w,
+        height: h,
+        value: null // Base64データがここに入る
+      };
+    });
+  }
+
+  // フィールドクリック時のアクション
+  function handleFieldClick(fieldId, type, width, height) {
+    activeFieldId = fieldId;
+    
+    if (type === 'signature') {
+      openModal('signatureModal');
+      resizeSigCanvas();
+    } else if (type === 'text') {
+      document.getElementById('textInputLabel').textContent = 'テキストを入力してください';
+      document.getElementById('modalTextInput').value = '';
+      openModal('textModal');
+      setTimeout(() => document.getElementById('modalTextInput').focus(), 100);
+    } else if (type === 'date') {
+      // 日付は今日の日付を自動入力 (フォーマット: YYYY年MM月DD日)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const date = String(now.getDate()).padStart(2, '0');
+      const dateStr = `${year}/${month}/${date}`;
+      
+      // フロント側で画像化して適用
+      applyTextToField(fieldId, dateStr, width, height);
+    }
+  }
+
+  // テキストを透過PNG画像に変換してフィールドに適用する (フォント問題を回避するため)
+  function applyTextToField(fieldId, text, width, height) {
+    const canvas = document.createElement('canvas');
+    // 解像度を2倍にして綺麗に描画
+    canvas.width = width * 2;
+    canvas.height = height * 2;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0F172A'; // 濃紺の墨文字
+    
+    // フォントサイズの自動調整
+    const fontSize = Math.floor(height * 0.9);
+    ctx.font = `500 ${fontSize}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    
+    // パディングを考慮して描画
+    ctx.fillText(text, 10, canvas.height / 2);
+    
+    const base64Data = canvas.toDataURL('image/png');
+    
+    // UI更新
+    const fieldEl = document.getElementById(fieldId);
+    fieldEl.classList.add('completed');
+    fieldEl.innerHTML = `<img src="${base64Data}">`;
+
+    userInputData[fieldId].value = base64Data;
+  }
+
+  // モーダル制御
+  function openModal(modalId) {
+    document.getElementById(modalId).classList.add('show');
+  }
+
+  function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('show');
+    activeFieldId = null;
+  }
+
+  function closeModalOnBackdrop(event, modalId) {
+    if (event.target === document.getElementById(modalId)) {
+      closeModal(modalId);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 手書き署名用 Canvas (Signature Pad)
+  // -------------------------------------------------------------
+  const sigCanvas = document.getElementById('sig-canvas');
+  const sigCtx = sigCanvas.getContext('2d');
+  let isDrawing = false;
+  let lastX = 0;
+  let lastY = 0;
+
+  function resizeSigCanvas() {
+    // コンテナのサイズに合わせてリサイズ
+    const container = sigCanvas.parentElement;
+    sigCanvas.width = container.clientWidth;
+    sigCanvas.height = 180;
+    
+    // 初期スタイル設定
+    sigCtx.strokeStyle = '#0F172A'; // サインの色
+    sigCtx.lineWidth = 3;
+    sigCtx.lineCap = 'round';
+    sigCtx.lineJoin = 'round';
+  }
+
+  function getMousePos(canvasDom, clientX, clientY) {
+    const rect = canvasDom.getBoundingClientRect();
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  }
+
+  // マウスイベント
+  sigCanvas.addEventListener('mousedown', (e) => {
+    isDrawing = true;
+    const pos = getMousePos(sigCanvas, e.clientX, e.clientY);
+    [lastX, lastY] = [pos.x, pos.y];
+  });
+
+  sigCanvas.addEventListener('mousemove', (e) => {
+    if (!isDrawing) return;
+    const pos = getMousePos(sigCanvas, e.clientX, e.clientY);
+    
+    sigCtx.beginPath();
+    sigCtx.moveTo(lastX, lastY);
+    sigCtx.lineTo(pos.x, pos.y);
+    sigCtx.stroke();
+    
+    [lastX, lastY] = [pos.x, pos.y];
+  });
+
+  sigCanvas.addEventListener('mouseup', () => isDrawing = false);
+  sigCanvas.addEventListener('mouseout', () => isDrawing = false);
+
+  // タッチイベント (モバイル対応)
+  sigCanvas.addEventListener('touchstart', (e) => {
+    isDrawing = true;
+    const touch = e.touches[0];
+    const pos = getMousePos(sigCanvas, touch.clientX, touch.clientY);
+    [lastX, lastY] = [pos.x, pos.y];
+    e.preventDefault();
+  }, { passive: false });
+
+  sigCanvas.addEventListener('touchmove', (e) => {
+    if (!isDrawing) return;
+    const touch = e.touches[0];
+    const pos = getMousePos(sigCanvas, touch.clientX, touch.clientY);
+    
+    sigCtx.beginPath();
+    sigCtx.moveTo(lastX, lastY);
+    sigCtx.lineTo(pos.x, pos.y);
+    sigCtx.stroke();
+    
+    [lastX, lastY] = [pos.x, pos.y];
+    e.preventDefault();
+  }, { passive: false });
+
+  sigCanvas.addEventListener('touchend', () => isDrawing = false);
+
+  function clearSignatureCanvas() {
+    sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+  }
+
+  // 手書き署名を適用
+  function saveSignature() {
+    // 描画が空かどうか簡易チェック（全ピクセル透明か調べる）
+    const buffer = new Uint32Array(sigCtx.getImageData(0, 0, sigCanvas.width, sigCanvas.height).data.buffer);
+    const hasDrawing = buffer.some(color => color !== 0);
+
+    if (!hasDrawing) {
+      alert('署名エリアにサインを書いてください。');
+      return;
+    }
+
+    const base64Data = sigCanvas.toDataURL('image/png');
+    
+    const fieldId = activeFieldId;
+    const fieldEl = document.getElementById(fieldId);
+    fieldEl.classList.add('completed');
+    fieldEl.innerHTML = `<img src="${base64Data}">`;
+
+    userInputData[fieldId].value = base64Data;
+    
+    closeModal('signatureModal');
+  }
+
+  // -------------------------------------------------------------
+  // テキスト入力の適用
+  // -------------------------------------------------------------
+  function saveTextInput() {
+    const textVal = document.getElementById('modalTextInput').value.trim();
+    if (!textVal) {
+      alert('テキストを入力してください。');
+      return;
+    }
+
+    const fieldId = activeFieldId;
+    const width = userInputData[fieldId].width;
+    const height = userInputData[fieldId].height;
+
+    applyTextToField(fieldId, textVal, width, height);
+    closeModal('textModal');
+  }
+
+  // -------------------------------------------------------------
+  // 署名結果の送信 (契約締結実行)
+  // -------------------------------------------------------------
+  async function submitSignature() {
+    const agreementCheck = document.getElementById('agreementCheck');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (!agreementCheck.checked) {
+      alert('「契約書の内容に同意する」のチェックボックスにチェックを入れてください。');
+      return;
+    }
+
+    // すべてのフィールドが入力されているかチェック
+    const uncompleted = Object.entries(userInputData).filter(([id, data]) => data.value === null);
+    if (uncompleted.length > 0) {
+      alert('すべての入力エリアに記入・署名を行ってください。');
+      return;
+    }
+
+    if (!confirm('契約を締結します。よろしいですか？この操作は取り消せません。')) {
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> 締結処理中...';
+    lucide.createIcons();
+
+    // fieldValues の形に成形 { [fieldId]: base64Data }
+    const fieldValues = {};
+    Object.entries(userInputData).forEach(([id, data]) => {
+      fieldValues[id] = data.value;
+    });
+
+    try {
+      const response = await fetch(`/api/sign/${token}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fieldValues })
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert('契約の締結が完了しました！');
+        // 詳細または完了画面へ
+        window.location.reload();
+      } else {
+        alert('締結失敗: ' + (result.error || '不明なエラー'));
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して契約を締結する';
+        lucide.createIcons();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して契約を締結する';
+      lucide.createIcons();
+    }
+  }
+</script>
+
+<%- include('partials/footer') %>
