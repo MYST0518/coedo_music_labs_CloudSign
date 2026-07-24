@@ -1,0 +1,10 @@
+node_modules/
+npm-debug.log
+contracts.db
+uploads/
+test_contract.pdf
+.git
+.fly
+fly.toml
+Dockerfile
+render.yaml
