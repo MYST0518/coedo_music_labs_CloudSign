@@ -160,6 +160,14 @@
         </p>
       <% } %>
 
+      <!-- メール送信トグル -->
+      <div style="margin-top: 1.5rem; padding: 1rem; border-radius: 8px; background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.2); display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+        <input type="checkbox" id="sendEmailsCheckbox" style="width: 18px; height: 18px; cursor: pointer;">
+        <label for="sendEmailsCheckbox" style="font-size: 0.9rem; color: #fff; cursor: pointer; font-weight: 500;">
+          作成と同時に署名依頼メールを相手方に自動送信する (チェックがない場合はメールは送られず、URL発行のみになります)
+        </label>
+      </div>
+
       <div style="display: flex; justify-content: flex-end; margin-top: 2rem;">
         <button onclick="executeBulkImport()" class="btn btn-primary" id="executeBtn" style="padding: 0.75rem 2rem; font-size: 1rem; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);">
           <i data-lucide="play" style="width: 18px; height: 18px;"></i>
@@ -391,6 +399,8 @@
       }
     });
 
+    const sendEmails = document.getElementById('sendEmailsCheckbox').checked;
+
     const mapping = {
       prefillMap,
       senderMode,
@@ -399,7 +409,8 @@
       senderNameCol,
       senderEmailCol,
       recipientNameCol,
-      recipientEmailCol
+      recipientEmailCol,
+      sendEmails
     };
 
     if (!confirm('CSVの全データに対して、契約書の自動生成 ＆ 一括送信を開始します。よろしいですか？')) {

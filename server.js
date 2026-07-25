@@ -890,38 +890,42 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
       await dbRun('COMMIT');
 
       // --- ③ 署名依頼メールの送信 (非同期) ---
-      const host = req.get('host');
-      const protocol = req.protocol;
-      const senderSignUrl = `${protocol}://${host}/sign/${senderToken}`;
-      const recipientSignUrl = `${protocol}://${host}/sign/${recipientToken}`;
+      if (mapping.sendEmails) {
+        const host = req.get('host');
+        const protocol = req.protocol;
+        const senderSignUrl = `${protocol}://${host}/sign/${senderToken}`;
+        const recipientSignUrl = `${protocol}://${host}/sign/${recipientToken}`;
 
-      const senderMailSubject = `【署名依頼】契約書「${template.title}_${recipientName}」の署名手続きを開始してください`;
-      const senderMailHtml = `
-        <p><strong>${senderName} 様</strong></p>
-        <p>スプレッドシート流し込みにより、契約書「${template.title}_${recipientName}」の自動発行が完了しました。</p>
-        <p>まずは以下のリンクより、ご自身の署名を行ってください。</p>
-        <p style="margin: 20px 0;">
-          <a href="${senderSignUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-family: sans-serif;">
-            自分の署名画面を開く
-          </a>
-        </p>
-        <p>また、相手方（${recipientName} 様）の署名用リンクは以下になります：</p>
-        <p><a href="${recipientSignUrl}">${recipientSignUrl}</a></p>
-      `;
-      sendMail({ to: senderEmail, subject: senderMailSubject, html: senderMailHtml });
+        const senderMailSubject = `【署名依頼】契約書「${template.title}_${recipientName}」の署名手続きを開始してください`;
+        const senderMailHtml = `
+          <p><strong>${senderName} 様</strong></p>
+          <p>スプレッドシート流し込みにより、契約書「${template.title}_${recipientName}」の自動発行が完了しました。</p>
+          <p>まずは以下のリンクより、ご自身の署名を行ってください。</p>
+          <p style="margin: 20px 0;">
+            <a href="${senderSignUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-family: sans-serif;">
+              自分の署名画面を開く
+            </a>
+          </p>
+          <p>また、相手方（${recipientName} 様）の署名用リンクは以下になります：</p>
+          <p><a href="${recipientSignUrl}">${recipientSignUrl}</a></p>
+        `;
+        sendMail({ to: senderEmail, subject: senderMailSubject, html: senderMailHtml });
 
-      const recipientMailSubject = `【署名依頼】契約書「${template.title}_${recipientName}」への署名をお願いします`;
-      const recipientMailHtml = `
-        <p><strong>${recipientName} 様</strong></p>
-        <p>${senderName} 様より、契約書「${template.title}_${recipientName}」の署名依頼が届いています。</p>
-        <p>以下のリンクより内容をご確認の上、署名手続きを行ってください。</p>
-        <p style="margin: 20px 0;">
-          <a href="${recipientSignUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-family: sans-serif;">
-            契約書を確認して署名する
-          </a>
-        </p>
-      `;
-      sendMail({ to: recipientEmail, subject: recipientMailSubject, html: recipientMailHtml });
+        const recipientMailSubject = `【署名依頼】契約書「${template.title}_${recipientName}」への署名をお願いします`;
+        const recipientMailHtml = `
+          <p><strong>${recipientName} 様</strong></p>
+          <p>${senderName} 様より、契約書「${template.title}_${recipientName}」の署名依頼が届いています。</p>
+          <p>以下のリンクより内容をご確認の上、署名手続きを行ってください。</p>
+          <p style="margin: 20px 0;">
+            <a href="${recipientSignUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-family: sans-serif;">
+              契約書を確認して署名する
+            </a>
+          </p>
+        `;
+        sendMail({ to: recipientEmail, subject: recipientMailSubject, html: recipientMailHtml });
+      } else {
+        console.log(`[Import] Skipped sending emails for contract ${contractId} (sendEmails is false)`);
+      }
 
       createdContracts.push({ contractId, recipientName });
     }
