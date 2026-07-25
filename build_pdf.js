@@ -115,15 +115,19 @@ async function main() {
 
   const pdfDoc = await PDFDocument.create();
   
-  // 本番環境（Alpine）の日本語フォントパス (.otf と .ttf の両方をチェック)
-  const fontPathTtf = '/usr/share/fonts/font-ipa/ipag.ttf';
-  const fontPathOtf = '/usr/share/fonts/font-ipa/ipag.otf';
-  
+  // 本番環境（Alpine）の日本語フォントパスの自動探索
+  const possiblePaths = [
+    '/usr/share/fonts/ipafont/ipag.ttf',
+    '/usr/share/fonts/font-ipa/ipag.ttf',
+    '/usr/share/fonts/font-ipa/ipag.otf',
+    '/usr/share/fonts/ipa/ipag.ttf'
+  ];
   let fontPath = null;
-  if (fs.existsSync(fontPathOtf)) {
-    fontPath = fontPathOtf;
-  } else if (fs.existsSync(fontPathTtf)) {
-    fontPath = fontPathTtf;
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      fontPath = p;
+      break;
+    }
   }
 
   let customFont;

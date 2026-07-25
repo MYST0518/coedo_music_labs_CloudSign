@@ -490,13 +490,18 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       const proofPage = pdfDoc.addPage([595.276, 841.89]);
       const { width: pWidth, height: pHeight } = proofPage.getSize();
       
-      const fontPathTtf = '/usr/share/fonts/font-ipa/ipag.ttf';
-      const fontPathOtf = '/usr/share/fonts/font-ipa/ipag.otf';
-      let fontPath = fontPathTtf;
-      if (fs.existsSync(fontPathOtf)) {
-        fontPath = fontPathOtf;
-      } else if (!fs.existsSync(fontPathTtf)) {
-        fontPath = null;
+      const possiblePaths = [
+        '/usr/share/fonts/ipafont/ipag.ttf',
+        '/usr/share/fonts/font-ipa/ipag.ttf',
+        '/usr/share/fonts/font-ipa/ipag.otf',
+        '/usr/share/fonts/ipa/ipag.ttf'
+      ];
+      let fontPath = null;
+      for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+          fontPath = p;
+          break;
+        }
       }
 
       let customFont;
@@ -755,13 +760,18 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
     const dataRows = rows.slice(1);
 
     // 日本語フォント (font-ipa) のロード
-    const fontPathTtf = '/usr/share/fonts/font-ipa/ipag.ttf';
-    const fontPathOtf = '/usr/share/fonts/font-ipa/ipag.otf';
-    let fontPath = fontPathTtf;
-    if (fs.existsSync(fontPathOtf)) {
-      fontPath = fontPathOtf;
-    } else if (!fs.existsSync(fontPathTtf)) {
-      fontPath = null;
+    const possiblePaths = [
+      '/usr/share/fonts/ipafont/ipag.ttf',
+      '/usr/share/fonts/font-ipa/ipag.ttf',
+      '/usr/share/fonts/font-ipa/ipag.otf',
+      '/usr/share/fonts/ipa/ipag.ttf'
+    ];
+    let fontPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        fontPath = p;
+        break;
+      }
     }
 
     let customFont;
