@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#1e1b4b" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#818cf8" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Card -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bgGrad)" />
+  
+  <!-- Subtle Border Glow -->
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="none" stroke="url(#accentGrad)" stroke-width="12" opacity="0.6" />
+
+  <!-- Shield / Document Icon outline -->
+  <path d="M256 96 L352 144 V240 C352 312 308 376 256 400 C204 376 160 312 160 240 V144 Z" 
+        fill="none" stroke="url(#accentGrad)" stroke-width="24" stroke-linejoin="round" opacity="0.3" />
+
+  <!-- CML Text -->
+  <text x="256" y="275" 
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" 
+        font-weight="900" 
+        font-size="140" 
+        fill="#ffffff" 
+        text-anchor="middle"
+        letter-spacing="4"
+        filter="url(#glow)">CML</text>
+
+  <!-- Verified Checkmark Badge -->
+  <circle cx="360" cy="150" r="44" fill="#22c55e" />
+  <path d="M338 150 L354 166 L384 136" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
