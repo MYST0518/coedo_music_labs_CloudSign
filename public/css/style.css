@@ -467,3 +467,53 @@ footer {
   background: rgba(11, 15, 25, 0.5);
   margin-top: auto;
 }
+
+/* ドラッグ＆ドロップ アップロードエリア */
+.drop-zone {
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+}
+
+.drop-zone i {
+  color: var(--text-secondary);
+  transition: var(--transition-smooth);
+}
+
+.drop-zone:hover i, .drop-zone.drag-over i {
+  color: var(--color-primary);
+  transform: translateY(-4px);
+}
+
+.drop-zone-text {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.drop-zone-file-info {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--color-secondary);
+  font-weight: 500;
+  display: none;
+  word-break: break-all;
+}

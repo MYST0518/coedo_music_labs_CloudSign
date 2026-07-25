@@ -103,8 +103,13 @@
       </div>
       
       <div class="form-group">
-        <label for="pdfFile">PDFファイル <span style="color: var(--color-danger);">*</span></label>
-        <input type="file" id="pdfFile" accept="application/pdf" required>
+        <label>PDFファイル <span style="color: var(--color-danger);">*</span></label>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('pdfFile').click()">
+          <i data-lucide="file-up" style="width: 36px; height: 36px;"></i>
+          <span class="drop-zone-text" id="dropZoneText">PDFファイルをここにドラッグ＆ドロップ、またはクリックして選択</span>
+          <div class="drop-zone-file-info" id="fileInfo"></div>
+          <input type="file" id="pdfFile" accept="application/pdf" style="display: none;" required>
+        </div>
       </div>
 
       <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 2rem;">
@@ -127,6 +132,16 @@
     const modal = document.getElementById('uploadModal');
     modal.classList.remove('show');
     document.getElementById('uploadForm').reset();
+    
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+      fileInfo.style.display = 'none';
+      fileInfo.textContent = '';
+    }
+    const dropZoneText = document.getElementById('dropZoneText');
+    if (dropZoneText) {
+      dropZoneText.style.display = 'block';
+    }
   }
 
   function closeModalOnBackdrop(event) {
@@ -134,6 +149,64 @@
       closeModal();
     }
   }
+
+  // ドラッグ＆ドロップ機能のイベント初期化
+  document.addEventListener('DOMContentLoaded', () => {
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('pdfFile');
+    const fileInfo = document.getElementById('fileInfo');
+    const dropZoneText = document.getElementById('dropZoneText');
+    const titleInput = document.getElementById('contractTitle');
+
+    if (!dropZone) return;
+
+    // ドラッグオーバー時
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    // ドラッグアウト・ドラッグ終了時
+    ['dragleave', 'dragend'].forEach(type => {
+      dropZone.addEventListener(type, () => {
+        dropZone.classList.remove('drag-over');
+      });
+    });
+
+    // ドロップ時
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+
+      if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.type === 'application/pdf') {
+          fileInput.files = e.dataTransfer.files;
+          updateFileInfo(file);
+        } else {
+          alert('PDFファイルのみアップロード可能です。');
+        }
+      }
+    });
+
+    // ファイル選択ダイアログからの選択時
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        updateFileInfo(fileInput.files[0]);
+      }
+    });
+
+    function updateFileInfo(file) {
+      fileInfo.textContent = `選択されたファイル: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+      fileInfo.style.display = 'block';
+      dropZoneText.style.display = 'none';
+
+      // 契約書名が空ならファイル名を自動セット (拡張子除く)
+      if (!titleInput.value) {
+        titleInput.value = file.name.replace(/\.[^/.]+$/, "");
+      }
+    }
+  });
 
   async function handleUpload(event) {
     event.preventDefault();
@@ -162,7 +235,6 @@
 
       const result = await response.json();
       if (response.ok) {
-        // 編集画面へ遷移
         window.location.href = `/contracts/edit/${result.id}`;
       } else {
         alert('アップロード失敗: ' + (result.error || '不明なエラー'));
