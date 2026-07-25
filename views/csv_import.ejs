@@ -177,7 +177,7 @@
       <div style="display: flex; justify-content: flex-end; margin-top: 2rem;">
         <button onclick="executeBulkImport()" class="btn btn-primary" id="executeBtn" style="padding: 0.75rem 2rem; font-size: 1rem; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);">
           <i data-lucide="play" style="width: 18px; height: 18px;"></i>
-          一括生成 ＆ 送信を実行
+          契約書を一括作成
         </button>
       </div>
     </div>
@@ -207,7 +207,7 @@
         <li>CSVファイルのエンコーディングは **UTF-8** を推奨します。</li>
         <li>1行目は必ず「列タイトル（ヘッダー）」にしてください。</li>
         <li>宛先情報が空欄の行はスキップされます。</li>
-        <li>送信を実行すると、各行ごとに契約書PDFが自動合成され、署名待ちURLが自動で一括発行されます。</li>
+        <li>一括作成を実行すると、各行ごとに契約書PDFが自動合成され、署名待ちURLが自動で一括発行されます。</li>
       </ul>
     </div>
   </div>
@@ -424,12 +424,12 @@
       sendEmails
     };
 
-    if (!confirm('CSVの全データに対して、契約書の自動生成 ＆ 一括送信を開始します。よろしいですか？')) {
+    if (!confirm('CSVの全データに対して、契約書の一括作成を開始します。よろしいですか？')) {
       return;
     }
 
     executeBtn.disabled = true;
-    executeBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 18px; height: 18px;"></i> 一括処理中...';
+    executeBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 18px; height: 18px;"></i> 一括作成中...';
     lucide.createIcons();
 
     const formData = new FormData();
@@ -444,19 +444,19 @@
 
       const result = await response.json();
       if (response.ok) {
-        alert(`一括処理が完了しました！\n正常に ${result.count} 件の契約書が作成・送信されました。`);
+        alert(`一括作成が完了しました！\n${result.count} 件の契約書が正常に作成されました。`);
         window.location.href = '/';
       } else {
-        alert('処理失敗: ' + (result.error || '不明なエラー'));
+        alert('作成失敗: ' + (result.error || '不明なエラー'));
         executeBtn.disabled = false;
-        executeBtn.innerHTML = '<i data-lucide="play" style="width: 18px; height: 18px;"></i> 一括生成 ＆ 送信を実行';
+        executeBtn.innerHTML = '<i data-lucide="play" style="width: 18px; height: 18px;"></i> 契約書を一括作成';
         lucide.createIcons();
       }
     } catch (err) {
       console.error(err);
       alert('通信エラーまたは処理エラーが発生しました。\n詳細: ' + err.message);
       executeBtn.disabled = false;
-      executeBtn.innerHTML = '<i data-lucide="play" style="width: 18px; height: 18px;"></i> 一括生成 ＆ 送信を実行';
+      executeBtn.innerHTML = '<i data-lucide="play" style="width: 18px; height: 18px;"></i> 契約書を一括作成';
       lucide.createIcons();
     }
   }

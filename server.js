@@ -947,6 +947,35 @@ app.post('/api/contracts/:id/delete', async (req, res) => {
   }
 });
 
+// 全契約書一括削除API
+app.post('/api/contracts/delete-all', async (req, res) => {
+  try {
+    const contracts = await dbAll('SELECT * FROM contracts');
+    for (const contract of contracts) {
+      const files = [contract.file_path, contract.signed_file_path];
+      files.forEach(f => {
+        if (f) {
+          const fullPath = path.join(dataDir, f);
+          if (fs.existsSync(fullPath)) {
+            try { fs.unlinkSync(fullPath); } catch (e) {}
+          }
+        }
+      });
+    }
+
+    await dbRun('BEGIN TRANSACTION');
+    await dbRun('DELETE FROM fields');
+    await dbRun('DELETE FROM signers');
+    await dbRun('DELETE FROM contracts');
+    await dbRun('COMMIT');
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '全契約書の削除中にエラーが発生しました。' });
+  }
+});
+
 app.get('/api/debug-fonts', (req, res) => {
   const fontDir = '/usr/share/fonts';
   const results = [];

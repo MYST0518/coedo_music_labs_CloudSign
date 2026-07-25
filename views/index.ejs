@@ -72,9 +72,16 @@
     <h1>契約ドキュメント</h1>
     <p style="margin-bottom: 0;">アップロードされた契約書、署名ステータスの確認・署名枠配置が行えます。</p>
   </div>
-  <button class="btn btn-primary" onclick="openModal()">
-    <i data-lucide="plus" style="width: 18px; height: 18px;"></i> 新規契約書アップロード
-  </button>
+  <div style="display: flex; gap: 0.5rem; align-items: center;">
+    <% if (contracts.length > 0) { %>
+      <button class="btn btn-danger" onclick="deleteAllContracts()" style="padding: 0.5rem 1rem;">
+        <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> 書類を全削除
+      </button>
+    <% } %>
+    <button class="btn btn-primary" onclick="openModal()">
+      <i data-lucide="plus" style="width: 18px; height: 18px;"></i> 新規契約書アップロード
+    </button>
+  </div>
 </div>
 
 <div class="glass-card" style="padding: 1.5rem; margin-bottom: 2rem;">
@@ -407,6 +414,29 @@
       } else {
         const result = await response.json();
         alert('削除失敗: ' + (result.error || '不明なエラー'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+    }
+  }
+
+  async function deleteAllContracts() {
+    if (!confirm('すべての契約書データを完全削除します。本当によろしいですか？\nこの操作は取り消せません。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/contracts/delete-all', {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        alert('すべての書類を削除しました。');
+        window.location.reload();
+      } else {
+        const result = await response.json();
+        alert('一括削除失敗: ' + (result.error || '不明なエラー'));
       }
     } catch (err) {
       console.error(err);
