@@ -963,6 +963,32 @@ app.post('/api/contracts/:id/delete', async (req, res) => {
   }
 });
 
+app.get('/api/debug-fonts', (req, res) => {
+  const fontDir = '/usr/share/fonts';
+  const results = [];
+  
+  function walk(dir) {
+    if (!fs.existsSync(dir)) return;
+    const list = fs.readdirSync(dir);
+    list.forEach(file => {
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
+      if (stat && stat.isDirectory()) {
+        walk(fullPath);
+      } else {
+        results.push(fullPath);
+      }
+    });
+  }
+  
+  try {
+    walk(fontDir);
+    res.json({ fonts: results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running at http://localhost:${PORT}`);
 });
