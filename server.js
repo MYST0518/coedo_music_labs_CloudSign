@@ -552,7 +552,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       for (const sg of allSigners) {
         const roleLabel = (sg.role === 'SENDER') ? 'Sender (甲):' : 'Recipient (乙):';
 
-        proofPage.drawText(roleLabel, { x: 50, y: currentY, size: 11, font: helveticaBold });
+        proofPage.drawText(roleLabel, { x: 50, y: currentY, size: 11, font: customFont });
         proofPage.drawText(sg.name, { x: 180, y: currentY, size: 11, font: customFont });
 
         proofPage.drawText('Email:', { x: 50, y: currentY - 20, size: 9, font: helveticaBold });
