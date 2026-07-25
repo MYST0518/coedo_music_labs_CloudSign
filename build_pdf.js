@@ -26,10 +26,21 @@ function wrapText(text, fontSize, font, maxWidth) {
   return lines;
 }
 
-async function main() {
-  const embedText = `﻿「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ-」音楽原盤制作契約書
+/**
+ * 契約書PDFを生成してバイト列で返す
+ * @param {string} recipientName  - 乙の氏名（空文字の場合は空欄のまま）
+ * @param {string} recipientAddress - 乙の住所（空文字の場合は空欄のまま）
+ * @returns {Promise<Uint8Array>} PDFバイト列
+ */
+async function buildContractPdf(recipientName = '', recipientAddress = '') {
 
-本契約は、株式会社Coedo Music Labo（以下「甲」という）と、○○        （以下「乙」という）との間において、「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ- 」（以下「本件原盤」という）の制作およびその利用に関し、以下の通り締結する。
+  // --- 本文テキスト ---
+  // 乙の名前を本文の○○部分に埋め込む
+  const recipientLabel = recipientName ? recipientName : '　　　　　　　　';
+
+  const embedText = `「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ-」音楽原盤制作契約書
+
+本契約は、株式会社Coedo Music Labo（以下「甲」という）と、${recipientLabel}（以下「乙」という）との間において、「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ- 」（以下「本件原盤」という）の制作およびその利用に関し、以下の通り締結する。
 
 第1条（定義）
 本契約において使用する用語の定義は、以下の通りとする。
@@ -62,7 +73,7 @@ async function main() {
 ①（報告の頻度）
 甲は乙に対し、本件原盤に係る収益額および現在のリクープ進捗状況を明記した計上報告書を開示するものとする。ただし、初期費用のリクープ完了までは【毎年1回 / または乙からの書面による請求があった場合のみ】とし、リクープ完了後は3ヶ月（四半期）ごとに行うものとする。
 ②（支払い）
-リクープ完了後に乙への支払いが発生する場合、甲は確定した金額を当該計上期間の翌々月末日までに乙の指定口座に振り込む。振込手数料は甲의 負担とする。
+リクープ完了後に乙への支払いが発生する場合、甲は確定した金額を当該計上期間の翌々月末日までに乙の指定口座に振り込む。振込手数料は甲の負担とする。
 ③（支払最低額）
 該当期間における乙への支払金額が3,000円（消費税別）に満たない場合は、甲は支払いを次期以降に繰り越すことができるものとする。ただし、契約終了時または原盤の利用停止時には、残額を全額支払う。
 
@@ -102,11 +113,11 @@ async function main() {
 --------------------------------------------------------------------------------
 本契約の成立を証するため、本書2通を作成し、甲乙署名のうえ、各1通を保有する。
 
-令和8年〇月〇日
+令和8年　　月　　日
 
-甲： 埼玉県ふじみ野市上福岡3-16-10朝日パリオ上福岡703
-株式会社Coedo Music Labo
-代表取締役 宮下 晋
+甲：　埼玉県ふじみ野市上福岡3-16-10朝日パリオ上福岡703
+　　　株式会社Coedo Music Labo
+　　　代表取締役　宮下 晋
 
 乙：`;
 
@@ -116,7 +127,7 @@ async function main() {
 
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
-  
+
   // 本番環境（Alpine）の日本語フォントパスの自動探索
   const possiblePaths = [
     '/usr/share/fonts/ipafont/ipag.ttf',
@@ -137,9 +148,8 @@ async function main() {
     const fontBytes = fs.readFileSync(fontPath);
     customFont = await pdfDoc.embedFont(fontBytes);
   } else {
-    // フォントがない場合は警告を出し、クラッシュ回避のためにダミー生成
     customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    console.warn('Japanese font not found in build_pdf.js. Falling back to Helvetica.');
+    console.warn('Japanese font not found. Falling back to Helvetica.');
   }
 
   let page = pdfDoc.addPage([595.276, 841.89]); // A4
@@ -148,7 +158,6 @@ async function main() {
   const marginX = 55;
   const marginY = 60;
   const printableWidth = width - (marginX * 2);
-  const printableHeight = height - (marginY * 2);
 
   let currentY = height - marginY;
   const lineSpacing = 16;
@@ -162,26 +171,30 @@ async function main() {
       continue;
     }
 
-    if (line.startsWith('本契約は、株式会社Coedo Music Labo')) {
-      line = '本契約は、株式会社Coedo Music Labo（以下「甲」という）と、                           （以下「乙」という）との間において、「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ- 」（以下「本件原盤」という）の制作およびその利用に関し、以下の通り締結する。';
-    }
-    if (line.startsWith('乙：')) {
-      line = '乙：';
-    }
-    if (line.startsWith('令和8年〇月〇日')) {
-      line = '令和8年      月      日';
-    }
-
     const isTitle = line.includes('「暴音族オムニバスアルバム') && line.includes('契約書');
     const isHeader = line.startsWith('第') && (line.includes('条') || line.includes('項'));
+    const isSeparator = line.startsWith('----');
 
     const fontSize = isTitle ? 16 : (isHeader ? 11 : 9.5);
-    
-    // フォントが Helvetica の場合は、2バイト文字をアスキー文字に変換してクラッシュを防ぐ (あくまでプレースホルダー)
+
     let wLineSource = line;
     if (!fontPath) {
-      // 2バイト文字を除去、またはダミーの英数字に置換してエンコードエラーを確実に防ぐ
       wLineSource = wLineSource.replace(/[^\x00-\x7F]/g, '*');
+    }
+
+    if (isSeparator) {
+      if (currentY - 10 < marginY) {
+        page = pdfDoc.addPage([595.276, 841.89]);
+        currentY = height - marginY;
+      }
+      page.drawLine({
+        start: { x: marginX, y: currentY - 5 },
+        end: { x: width - marginX, y: currentY - 5 },
+        thickness: 0.5,
+        color: rgb(0.5, 0.5, 0.5)
+      });
+      currentY -= 15;
+      continue;
     }
 
     const wrappedLines = wrapText(wLineSource, fontSize, customFont, printableWidth);
@@ -211,23 +224,129 @@ async function main() {
     currentY -= 6;
   }
 
-  // 署名欄
-  if (currentY - 120 < marginY) {
+  // =====================================================
+  // 乙の署名欄（住所・氏名を自動印字 + 手書き用スペース）
+  // =====================================================
+  if (currentY - 150 < marginY) {
     page = pdfDoc.addPage([595.276, 841.89]);
     currentY = height - marginY;
   }
 
-  currentY -= 20;
-  page.drawText(fontPath ? '乙：' : 'B:', { x: marginX, y: currentY - 11, size: 11, font: customFont });
-  page.drawText(fontPath ? '住所：' : 'Address:', { x: marginX + 30, y: currentY - 11, size: 10, font: customFont });
-  page.drawLine({ start: { x: marginX + 70, y: currentY - 13 }, end: { x: marginX + 350, y: currentY - 13 }, thickness: 0.5 });
-  
-  currentY -= 25;
-  page.drawText(fontPath ? '氏名：' : 'Name:', { x: marginX + 30, y: currentY - 11, size: 10, font: customFont });
-  page.drawLine({ start: { x: marginX + 70, y: currentY - 13 }, end: { x: marginX + 350, y: currentY - 13 }, thickness: 0.5 });
+  currentY -= 10;
+  const sigFontSize = 10;
+  const indent = marginX + 25; // 「乙：」の後のインデント
 
-  const pdfBytes = await pdfDoc.save();
-  
+  // ---- 住所 ----
+  if (fontPath) {
+    page.drawText('住所：', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont, color: rgb(0, 0, 0) });
+  } else {
+    page.drawText('Address:', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont });
+  }
+
+  const addrLabelWidth = customFont.widthOfTextAtSize(fontPath ? '住所：' : 'Address:', sigFontSize);
+  const addrStartX = indent + addrLabelWidth + 4;
+  const addrEndX = width - marginX;
+
+  if (recipientAddress) {
+    // 住所を印字（折り返し対応）
+    const addrLines = wrapText(
+      fontPath ? recipientAddress : recipientAddress.replace(/[^\x00-\x7F]/g, '*'),
+      sigFontSize,
+      customFont,
+      addrEndX - addrStartX
+    );
+    for (let i = 0; i < addrLines.length; i++) {
+      page.drawText(addrLines[i], {
+        x: addrStartX,
+        y: currentY - sigFontSize - i * (sigFontSize + 4),
+        size: sigFontSize,
+        font: customFont,
+        color: rgb(0, 0, 0)
+      });
+    }
+  }
+  // 住所の下線
+  page.drawLine({
+    start: { x: addrStartX, y: currentY - sigFontSize - 2 },
+    end: { x: addrEndX, y: currentY - sigFontSize - 2 },
+    thickness: 0.5,
+    color: rgb(0, 0, 0)
+  });
+
+  currentY -= 30;
+
+  // ---- 氏名 ----
+  if (fontPath) {
+    page.drawText('氏名：', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont, color: rgb(0, 0, 0) });
+  } else {
+    page.drawText('Name:', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont });
+  }
+
+  const nameLabelWidth = customFont.widthOfTextAtSize(fontPath ? '氏名：' : 'Name:', sigFontSize);
+  const nameStartX = indent + nameLabelWidth + 4;
+  const nameEndX = width - marginX;
+
+  if (recipientName) {
+    page.drawText(
+      fontPath ? recipientName : recipientName.replace(/[^\x00-\x7F]/g, '*'),
+      {
+        x: nameStartX,
+        y: currentY - sigFontSize,
+        size: sigFontSize,
+        font: customFont,
+        color: rgb(0, 0, 0)
+      }
+    );
+  }
+  // 氏名の下線
+  page.drawLine({
+    start: { x: nameStartX, y: currentY - sigFontSize - 2 },
+    end: { x: nameEndX, y: currentY - sigFontSize - 2 },
+    thickness: 0.5,
+    color: rgb(0, 0, 0)
+  });
+
+  currentY -= 40;
+
+  // ---- 署名（手書きスペース）----
+  if (fontPath) {
+    page.drawText('署名：', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont, color: rgb(0, 0, 0) });
+  } else {
+    page.drawText('Signature:', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont });
+  }
+  const sigLabelWidth = customFont.widthOfTextAtSize(fontPath ? '署名：' : 'Signature:', sigFontSize);
+  // 手書き署名のためのBOX（縦50px）
+  const sigBoxStartX = indent + sigLabelWidth + 4;
+  const sigBoxEndX = sigBoxStartX + 200;
+  const sigBoxTopY = currentY - sigFontSize + 2;
+  const sigBoxBottomY = sigBoxTopY - 50;
+  page.drawRectangle({
+    x: sigBoxStartX,
+    y: sigBoxBottomY,
+    width: sigBoxEndX - sigBoxStartX,
+    height: 50,
+    borderColor: rgb(0.6, 0.6, 0.6),
+    borderWidth: 0.5,
+  });
+
+  currentY -= 65;
+
+  // ---- 日付（手書きスペース）----
+  if (fontPath) {
+    page.drawText('令和　　年　　月　　日', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont, color: rgb(0, 0, 0) });
+  } else {
+    page.drawText('Date: ___/___/___', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont });
+  }
+
+  return await pdfDoc.save();
+}
+
+// ==========================================
+// スタンドアロン実行（テンプレートPDF生成）
+// ==========================================
+async function main() {
+  const pdfBytes = await buildContractPdf('', '');
+
   const dataDir = process.env.DATA_DIR || __dirname;
   const destDir = path.join(dataDir, 'uploads', 'templates');
   if (!fs.existsSync(destDir)) {
@@ -235,11 +354,15 @@ async function main() {
   }
   const outputPath = path.join(destDir, 'buon_template.pdf');
   fs.writeFileSync(outputPath, pdfBytes);
-  console.log('PDF generated successfully at:', outputPath);
+  console.log('Template PDF generated at:', outputPath);
 }
 
-main().catch(err => {
-  console.error('Error generating PDF:', err);
-  // エラー時も正常終了させ、コンテナの再起動ループを防ぐ
-  process.exit(0);
-});
+module.exports = { buildContractPdf };
+
+// 直接実行された場合はmain()を呼ぶ
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Error generating PDF:', err);
+    process.exit(0);
+  });
+}

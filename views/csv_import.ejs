@@ -123,6 +123,12 @@
             <td><select class="csv-col-select" id="recipientNameCol" required></select></td>
           </tr>
           <tr>
+            <td><strong>署名者2 (乙/相手) 住所</strong></td>
+            <td><select class="csv-col-select" id="recipientAddressCol">
+              <option value="">-- 流し込まない --</option>
+            </select></td>
+          </tr>
+          <tr>
             <td><strong>署名者2 (乙/相手) メール</strong></td>
             <td><select class="csv-col-select" id="recipientEmailCol" required></select></td>
           </tr>
@@ -402,6 +408,8 @@
 
     const sendEmails = document.getElementById('sendEmailsCheckbox').checked;
 
+    const recipientAddressCol = document.getElementById('recipientAddressCol') ? document.getElementById('recipientAddressCol').value : '';
+
     const mapping = {
       prefillMap,
       senderMode,
@@ -411,6 +419,7 @@
       senderEmailCol,
       recipientNameCol,
       recipientEmailCol,
+      recipientAddressCol,
       sendEmails
     };
 

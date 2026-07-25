@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const nodemailer = require('nodemailer');
+const { buildContractPdf } = require('./build_pdf');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -811,56 +812,22 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
 
       const recipientName = rowData[mapping.recipientNameCol];
       const recipientEmail = rowData[mapping.recipientEmailCol];
+      const recipientAddress = mapping.recipientAddressCol ? (rowData[mapping.recipientAddressCol] || '') : '';
 
       if (!senderName || !senderEmail || !recipientName || !recipientEmail) {
         console.warn('Skipping CSV row due to missing sender/recipient info:', rowData);
         continue;
       }
 
-      // --- ① PDFに差し込み文字（prefill）を印字合成する ---
-      const pdfDoc = await PDFDocument.load(pdfBytes);
-      pdfDoc.registerFontkit(fontkit);
-      const pages = pdfDoc.getPages();
+      // --- ① 受取人の名前・住所を埋め込んだ契約書PDFを生成する ---
+      console.log(`[Import] Building PDF for ${recipientName} / address: ${recipientAddress || '(なし)'}`);
+      const prefilledPdfBytes = await buildContractPdf(recipientName, recipientAddress);
 
-      // 日本語フォントの組み込み
-      let fontObject;
-      if (customFont) {
-        fontObject = await pdfDoc.embedFont(customFont);
-      } else {
-        fontObject = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      }
-
-      const prefillFields = templateFields.filter(f => f.type === 'prefill');
-      for (const pf of prefillFields) {
-        const csvColName = mapping.prefillMap[pf.placeholder_name];
-        const val = rowData[csvColName] || '';
-        if (!val) continue;
-
-        const page = pages[pf.page_number - 1];
-        const { width, height } = page.getSize();
-
-        // 座標算出 (プレフィル枠の左下を原点に描画)
-        const x = pf.x_ratio * width;
-        const y = height - (pf.y_ratio * height) - (pf.height_ratio * height);
-
-        // 文字サイズは縦幅の70%〜90%程度に合わせる
-        const fontSize = Math.max(9, Math.floor(pf.height_ratio * height * 0.75));
-
-        page.drawText(val, {
-          x: x + 4, // わずかな左パディング
-          y: y + (pf.height_ratio * height - fontSize) / 2, // 縦中央寄せ
-          size: fontSize,
-          font: fontObject,
-        });
-      }
-
-      // 描画済みPDFを保存
       const uniqueSuffix = uuidv4();
       const newPdfFileName = `contract-prefilled-${uniqueSuffix}.pdf`;
       const newPdfFilePath = `/uploads/${newPdfFileName}`;
       const newPdfFullPath = path.join(dataDir, 'uploads', newPdfFileName);
 
-      const prefilledPdfBytes = await pdfDoc.save();
       fs.writeFileSync(newPdfFullPath, prefilledPdfBytes);
 
       // --- ② データベースに契約と署名者を保存 ---
