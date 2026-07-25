@@ -1,5 +1,52 @@
 <%- include('partials/header', { title: '契約書編集' }) %>
 
+<style>
+  /* 役割別のフィールド色分け */
+  .placed-field.role-sender {
+    border-color: var(--color-primary) !important;
+    background: rgba(99, 102, 241, 0.25) !important;
+  }
+  .placed-field.role-recipient {
+    border-color: var(--color-warning) !important;
+    background: rgba(245, 158, 11, 0.25) !important;
+  }
+  
+  /* 役割切り替えトグル */
+  .role-toggle {
+    position: absolute;
+    bottom: -22px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    z-index: 10;
+  }
+  .role-toggle button {
+    font-size: 8px;
+    font-family: inherit;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: rgba(11, 15, 25, 0.95);
+    color: var(--text-secondary);
+    cursor: pointer;
+    line-height: 1;
+    transition: var(--transition-smooth);
+  }
+  .role-toggle button.active.sender-btn {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+  }
+  .role-toggle button.active.recipient-btn {
+    background: var(--color-warning);
+    color: #0b0f19;
+    border-color: var(--color-warning);
+  }
+</style>
+
 <div style="margin-bottom: 1.5rem;">
   <a href="/" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; margin-bottom: 1rem;">
     <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> ダッシュボードに戻る
@@ -7,7 +54,7 @@
   <div style="display: flex; justify-content: space-between; align-items: flex-end;">
     <div>
       <h1>契約書へのフィールド配置</h1>
-      <p style="margin-bottom: 0;">契約相手（署名者）が入力・署名するエリアをPDF上にドラッグして配置してください。</p>
+      <p style="margin-bottom: 0;">「自分」と「相手」それぞれが署名するエリアをPDF上に配置してください。</p>
     </div>
     <div style="font-weight: 500; font-size: 0.9rem; color: var(--text-secondary);">
       書類: <span style="color: #fff;"><%= contract.title %></span>
@@ -19,7 +66,6 @@
   <!-- PDF表示エリア -->
   <div class="pdf-viewer-panel" id="pdf-viewer-panel">
     <div id="pdf-viewer">
-      <!-- PDFの各ページが動的にレンダリングされます -->
       <div id="loading-indicator" style="text-align: center; margin-top: 3rem;">
         <i data-lucide="loader" class="animate-spin" style="width: 32px; height: 32px; color: var(--color-primary); margin-bottom: 1rem;"></i>
         <p>PDFドキュメントをレンダリングしています...</p>
@@ -29,13 +75,14 @@
 
   <!-- 操作サイドバー -->
   <div class="sidebar-panel">
+    <!-- フィールド追加 -->
     <div class="glass-card" style="padding: 1.5rem;">
       <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
         <i data-lucide="layout-template" style="color: var(--color-primary);"></i>
         フィールドの追加
       </h3>
-      <p style="font-size: 0.8rem; margin-bottom: 1rem;">
-        以下のアイテムを左側のPDFプレビュー上の配置したい場所にドラッグ＆ドロップしてください。
+      <p style="font-size: 0.8rem; margin-bottom: 1rem; color: var(--text-secondary);">
+        以下のアイテムをドラッグ＆ドロップし、配置後に「自分用（青）」か「相手用（橙）」かを選択してください。
       </p>
 
       <div style="display: flex; flex-direction: column; gap: 0.75rem;">
@@ -54,21 +101,42 @@
       </div>
     </div>
 
-    <div class="glass-card" style="padding: 1.5rem;">
+    <!-- 宛先設定と送信 -->
+    <div class="glass-card" style="padding: 1.5rem; max-height: calc(100vh - 350px); overflow-y: auto;">
       <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
         <i data-lucide="send" style="color: var(--color-secondary);"></i>
         宛先設定と送信
       </h3>
       
       <form id="sendForm" onsubmit="handleSend(event)">
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label for="signerName">署名者の氏名 <span style="color: var(--color-danger);">*</span></label>
-          <input type="text" id="signerName" placeholder="例: 山田 太郎" required>
+        <!-- 署名者1（甲/自分） -->
+        <h4 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--color-primary); display: flex; align-items: center; gap: 0.4rem;">
+          <i data-lucide="user" style="width: 14px; height: 14px;"></i>
+          署名者1 (甲/自分)
+        </h4>
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label for="senderName">氏名 <span style="color: var(--color-danger);">*</span></label>
+          <input type="text" id="senderName" placeholder="例: 山田 太郎" required>
         </div>
-        
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="senderEmail">メールアドレス <span style="color: var(--color-danger);">*</span></label>
+          <input type="email" id="senderEmail" placeholder="sender@domain.com" required>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 1.25rem 0;">
+
+        <!-- 署名者2（乙/相手） -->
+        <h4 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--color-warning); display: flex; align-items: center; gap: 0.4rem;">
+          <i data-lucide="user" style="width: 14px; height: 14px;"></i>
+          署名者2 (乙/相手)
+        </h4>
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label for="recipientName">氏名 <span style="color: var(--color-danger);">*</span></label>
+          <input type="text" id="recipientName" placeholder="例: 鈴木 花子" required>
+        </div>
         <div class="form-group" style="margin-bottom: 1.5rem;">
-          <label for="signerEmail">署名者のメールアドレス <span style="color: var(--color-danger);">*</span></label>
-          <input type="email" id="signerEmail" placeholder="example@domain.com" required>
+          <label for="recipientEmail">メールアドレス <span style="color: var(--color-danger);">*</span></label>
+          <input type="email" id="recipientEmail" placeholder="recipient@domain.com" required>
         </div>
 
         <button type="submit" class="btn btn-primary" style="width: 100%;" id="sendBtn">
@@ -107,17 +175,14 @@
 
     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
-      // 標準A4を基準に適切な表示サイズにするためスケール調整 (1.2程度)
       const viewport = page.getViewport({ scale: 1.25 });
 
-      // ページコンテナ作成
       const pageContainer = document.createElement('div');
       pageContainer.className = 'pdf-page-container';
       pageContainer.dataset.page = pageNum;
       pageContainer.style.width = viewport.width + 'px';
       pageContainer.style.height = viewport.height + 'px';
 
-      // HTML5 Canvas 作成
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.width = viewport.width;
@@ -130,18 +195,16 @@
         viewport: viewport
       }).promise;
 
-      // ドロップ受け入れ設定
       initDropZone(pageContainer);
     }
     
-    // アイコン再描画
     lucide.createIcons();
   }).catch(err => {
     console.error('PDF render error:', err);
     alert('PDFの読み込みに失敗しました。');
   });
 
-  // ドラッグ開始のイベントハンドラー
+  // ドラッグ開始
   const sources = document.querySelectorAll('.draggable-field-source');
   sources.forEach(source => {
     source.addEventListener('dragstart', (e) => {
@@ -150,10 +213,10 @@
     });
   });
 
-  // ページ上のドロップ設定
+  // ドロップ設定
   function initDropZone(pageContainer) {
     pageContainer.addEventListener('dragover', (e) => {
-      e.preventDefault(); // ドロップを許可
+      e.preventDefault();
     });
 
     pageContainer.addEventListener('drop', (e) => {
@@ -162,10 +225,6 @@
       if (!type) return;
 
       const rect = pageContainer.getBoundingClientRect();
-      const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-
-      // マウス位置の算出 (スクロール考慮)
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
@@ -178,7 +237,6 @@
     const pageNum = parseInt(pageContainer.dataset.page);
     const size = fieldSizes[type];
     
-    // フィールド枠がページ外にはみ出ないように座標を調整
     const pWidth = pageContainer.clientWidth;
     const pHeight = pageContainer.clientHeight;
     
@@ -193,18 +251,22 @@
     const fieldId = initialData ? initialData.id : 'f_' + (++fieldCounter);
 
     const fieldEl = document.createElement('div');
-    fieldEl.className = 'placed-field';
+    fieldEl.className = 'placed-field role-sender'; // デフォルトは自分（SENDER）用
     fieldEl.id = fieldId;
     fieldEl.style.width = size.width + 'px';
     fieldEl.style.height = size.height + 'px';
     fieldEl.style.left = targetX + 'px';
     fieldEl.style.top = targetY + 'px';
 
-    // 表示用ラベル
-    const labelMap = { signature: '署名欄', text: 'テキスト入力', date: '日付欄' };
+    const labelMap = { signature: '署名枠', text: 'テキスト入力', date: '日付枠' };
+    
     fieldEl.innerHTML = `
-      <span>${labelMap[type]}</span>
+      <span class="field-text">${labelMap[type]} (甲)</span>
       <button class="delete-btn" type="button" onclick="deleteField('${fieldId}')">&times;</button>
+      <div class="role-toggle">
+        <button type="button" class="sender-btn active" onclick="setFieldRole('${fieldId}', 'SENDER')">甲</button>
+        <button type="button" class="recipient-btn" onclick="setFieldRole('${fieldId}', 'RECIPIENT')">乙</button>
+      </div>
     `;
 
     pageContainer.appendChild(fieldEl);
@@ -222,23 +284,51 @@
       xRatio: xRatio,
       yRatio: yRatio,
       widthRatio: widthRatio,
-      heightRatio: heightRatio
+      heightRatio: heightRatio,
+      role: 'SENDER' // デフォルト役割
     };
 
     placedFields.push(fieldData);
     
-    // マウスドラッグでの移動処理
     makeDraggable(fieldEl, pageContainer, fieldData);
   }
 
-  // 配置済みフィールドをドラッグで移動できるようにする
+  // 枠の対象（役割）を切り替える
+  window.setFieldRole = function(fieldId, role) {
+    const fieldEl = document.getElementById(fieldId);
+    if (!fieldEl) return;
+
+    const data = placedFields.find(f => f.id === fieldId);
+    if (!data) return;
+
+    data.role = role;
+
+    const senderBtn = fieldEl.querySelector('.sender-btn');
+    const recipientBtn = fieldEl.querySelector('.recipient-btn');
+    const textSpan = fieldEl.querySelector('.field-text');
+    const labelMap = { signature: '署名枠', text: 'テキスト入力', date: '日付枠' };
+
+    if (role === 'SENDER') {
+      fieldEl.className = 'placed-field role-sender';
+      senderBtn.classList.add('active');
+      recipientBtn.classList.remove('active');
+      textSpan.textContent = `${labelMap[data.type]} (甲)`;
+    } else {
+      fieldEl.className = 'placed-field role-recipient';
+      senderBtn.classList.remove('active');
+      recipientBtn.classList.add('active');
+      textSpan.textContent = `${labelMap[data.type]} (乙)`;
+    }
+  };
+
+  // ドラッグ移動処理
   function makeDraggable(element, container, data) {
     let isDragging = false;
     let startX, startY;
     let initialLeft, initialTop;
 
     element.addEventListener('mousedown', (e) => {
-      if (e.target.classList.contains('delete-btn')) return;
+      if (e.target.classList.contains('delete-btn') || e.target.tagName === 'BUTTON') return;
       isDragging = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -271,7 +361,6 @@
       element.style.left = newLeft + 'px';
       element.style.top = newTop + 'px';
       
-      // 比率を更新
       data.xRatio = newLeft / cWidth;
       data.yRatio = newTop / cHeight;
     });
@@ -294,8 +383,10 @@
   // 送信処理
   async function handleSend(event) {
     event.preventDefault();
-    const signerName = document.getElementById('signerName').value.trim();
-    const signerEmail = document.getElementById('signerEmail').value.trim();
+    const senderName = document.getElementById('senderName').value.trim();
+    const senderEmail = document.getElementById('senderEmail').value.trim();
+    const recipientName = document.getElementById('recipientName').value.trim();
+    const recipientEmail = document.getElementById('recipientEmail').value.trim();
     const sendBtn = document.getElementById('sendBtn');
 
     if (placedFields.length === 0) {
@@ -303,7 +394,17 @@
       return;
     }
 
-    if (!confirm('この内容で署名依頼を送信（発行）しますか？')) {
+    // 甲と乙両方のフィールドが少なくとも1つずつ配置されているか簡易バリデーション
+    const hasSenderField = placedFields.some(f => f.role === 'SENDER');
+    const hasRecipientField = placedFields.some(f => f.role === 'RECIPIENT');
+
+    if (!hasSenderField || !hasRecipientField) {
+      if (!confirm('甲（自分）または乙（相手）のどちらかに枠が配置されていません。よろしいですか？')) {
+        return;
+      }
+    }
+
+    if (!confirm('この内容でお互いの署名枠を確定し、署名用リンクを発行しますか？')) {
       return;
     }
 
@@ -316,16 +417,17 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          signerName,
-          signerEmail,
+          senderName,
+          senderEmail,
+          recipientName,
+          recipientEmail,
           fields: placedFields
         })
       });
 
       const result = await response.json();
       if (response.ok) {
-        alert('署名依頼を作成しました。');
-        // 詳細画面へリダイレクト
+        alert('署名用URLを発行しました。');
         window.location.href = `/contracts/detail/${contractId}`;
       } else {
         alert('送信失敗: ' + (result.error || '不明なエラー'));

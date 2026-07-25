@@ -1,9 +1,39 @@
 <%- include('partials/header', { title: '契約書への署名' }) %>
 
+<style>
+  /* 相手方の非活性枠 */
+  .signer-input-field.disabled {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    cursor: default !important;
+    box-shadow: none !important;
+  }
+  .signer-input-field.disabled .field-label {
+    color: var(--text-muted) !important;
+    font-weight: normal !important;
+  }
+  /* 自分の担当枠 (甲なら青、乙ならオレンジ) */
+  .signer-input-field.my-field.role-sender {
+    border-color: var(--color-primary);
+    background: rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.2);
+  }
+  .signer-input-field.my-field.role-recipient {
+    border-color: var(--color-warning);
+    background: rgba(245, 158, 11, 0.1);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+  }
+</style>
+
 <div style="margin-bottom: 1.5rem;">
   <div style="display: flex; justify-content: space-between; align-items: flex-end;">
     <div>
-      <h1>署名手続き</h1>
+      <h1>署名手続き
+        <span style="font-size: 1.1rem; margin-left: 0.5rem; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: bold; 
+          <%= signer.role === 'SENDER' ? 'background: rgba(99, 102, 241, 0.2); color: var(--color-primary);' : 'background: rgba(245, 158, 11, 0.2); color: var(--color-warning);' %>">
+          <%= signer.role === 'SENDER' ? '甲（自分）として署名' : '乙（相手）として署名' %>
+        </span>
+      </h1>
       <p style="margin-bottom: 0;">以下の手順に沿って、契約内容を確認し、指定のエリアに署名を行ってください。</p>
     </div>
     <div style="font-weight: 500; font-size: 0.9rem; color: var(--text-secondary);">
@@ -12,11 +42,30 @@
   </div>
 </div>
 
+<% if (contract.status === 'SIGNED') { %>
+  <!-- すでに締結完了している場合 -->
+  <div class="glass-card" style="text-align: center; padding: 3rem 1rem; border-color: var(--color-secondary); margin-bottom: 2rem;">
+    <i data-lucide="check-circle" style="width: 48px; height: 48px; color: var(--color-secondary); margin-bottom: 1rem;"></i>
+    <h2>この契約はすでに締結完了しています</h2>
+    <p style="margin-bottom: 1.5rem;">双方の署名が完了し、最終合意書PDFが作成されました。</p>
+    <a href="<%= contract.signed_file_path %>" download class="btn btn-primary" style="background: var(--color-secondary);">
+      <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+      締結済みPDFをダウンロード
+    </a>
+  </div>
+<% } else if (signer.signed_at) { %>
+  <!-- 自分の署名は完了しているが、相手を待っている場合 -->
+  <div class="glass-card" style="text-align: center; padding: 3rem 1rem; border-color: var(--color-primary); margin-bottom: 2rem;">
+    <i data-lucide="clock" style="width: 48px; height: 48px; color: var(--color-primary); margin-bottom: 1rem;"></i>
+    <h2>あなたの署名は受領されました</h2>
+    <p style="margin-bottom: 0;">もう一方の署名者が署名手続きを行うのをお待ちください。両方の署名が完了すると、PDFのダウンロードが可能になります。</p>
+  </div>
+<% } %>
+
 <div class="editor-layout">
   <!-- PDF表示エリア -->
   <div class="pdf-viewer-panel" id="pdf-viewer-panel">
     <div id="pdf-viewer" style="position: relative;">
-      <!-- PDFの各ページが動的にレンダリングされます -->
       <div id="loading-indicator" style="text-align: center; margin-top: 3rem;">
         <i data-lucide="loader" class="animate-spin" style="width: 32px; height: 32px; color: var(--color-primary); margin-bottom: 1rem;"></i>
         <p>契約書ドキュメントを読み込んでいます...</p>
@@ -34,22 +83,34 @@
       
       <ol style="padding-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
         <li>左側の書面をスクロールして内容をご確認ください。</li>
-        <li><span style="color: var(--color-warning); font-weight: 600;">オレンジ色で縁取られた枠</span>をクリックして、サインやテキストを入力してください。</li>
-        <li>すべての入力が完了したら、同意チェックをして締結を実行します。</li>
+        <li>
+          <span style="font-weight: 600; <%= signer.role === 'SENDER' ? 'color: var(--color-primary);' : 'color: var(--color-warning);' %>">
+            <%= signer.role === 'SENDER' ? '青色で縁取られた枠（甲）' : 'オレンジ色で縁取られた枠（乙）' %>
+          </span>
+          をクリックして、サインやテキストを入力してください。
+        </li>
+        <li style="color: var(--text-muted);">グレー色の枠は相手方の入力枠です（入力できません）。</li>
+        <li>すべての入力が完了したら、同意チェックをして署名を送信します。</li>
       </ol>
 
       <div style="border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
         <div style="display: flex; align-items: flex-start; gap: 0.5rem; margin-bottom: 1.25rem;">
-          <input type="checkbox" id="agreementCheck" style="margin-top: 3px; cursor: pointer;">
+          <input type="checkbox" id="agreementCheck" style="margin-top: 3px; cursor: pointer;" <%= (signer.signed_at || contract.status === 'SIGNED') ? 'disabled checked' : '' %>>
           <label for="agreementCheck" style="font-size: 0.85rem; cursor: pointer; color: var(--text-primary); line-height: 1.4;">
-            契約書の内容に同意し、電子署名を付与して契約を締結することに同意します。
+            契約書の内容に同意し、電子署名を付与することに同意します。
           </label>
         </div>
 
-        <button onclick="submitSignature()" class="btn btn-primary" style="width: 100%; background: var(--color-secondary); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);" id="submitBtn">
-          <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
-          同意して契約を締結する
-        </button>
+        <% if (!signer.signed_at && contract.status !== 'SIGNED') { %>
+          <button onclick="submitSignature()" class="btn btn-primary" style="width: 100%;" id="submitBtn">
+            <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
+            同意して署名を送信する
+          </button>
+        <% } else { %>
+          <button class="btn btn-secondary" style="width: 100%; cursor: not-allowed;" disabled>
+            手続き完了済み
+          </button>
+        <% } %>
       </div>
     </div>
   </div>
@@ -115,13 +176,15 @@
 
   const pdfUrl = '<%= contract.file_path %>';
   const token = '<%= signer.access_token %>';
-  const serverFields = <%- JSON.stringify(fields) %>; // サーバーから渡されたフィールド位置リスト
+  const currentSignerId = '<%= signer.id %>';
+  const currentSignerRole = '<%= signer.role %>';
+  const serverFields = <%- JSON.stringify(fields) %>;
+  const serverSigners = <%- JSON.stringify(signers) %>;
   
-  // 入力された値を保持するオブジェクト { fieldId: { value: '...', type: '...' } }
-  const userInputData = {}; 
+  const userInputData = {}; // 自分の入力する枠のみ値を管理
   let activeFieldId = null;
 
-  // 1. PDF読み込み・表示処理
+  // PDF読み込み・表示処理
   const loadingTask = pdfjsLib.getDocument(pdfUrl);
   loadingTask.promise.then(async (pdf) => {
     document.getElementById('loading-indicator').remove();
@@ -132,14 +195,12 @@
       const page = await pdf.getPage(pageNum);
       const viewport = page.getViewport({ scale: 1.25 });
 
-      // ページコンテナ作成
       const pageContainer = document.createElement('div');
       pageContainer.className = 'pdf-page-container';
       pageContainer.dataset.page = pageNum;
       pageContainer.style.width = viewport.width + 'px';
       pageContainer.style.height = viewport.height + 'px';
 
-      // Canvas
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.width = viewport.width;
@@ -152,7 +213,6 @@
         viewport: viewport
       }).promise;
 
-      // 該当ページの入力枠を描画
       renderFieldsForPage(pageContainer, pageNum);
     }
     
@@ -176,38 +236,64 @@
       const h = field.height_ratio * pHeight;
 
       const fieldEl = document.createElement('div');
-      fieldEl.className = 'signer-input-field';
       fieldEl.id = field.id;
       fieldEl.style.left = x + 'px';
       fieldEl.style.top = y + 'px';
       fieldEl.style.width = w + 'px';
       fieldEl.style.height = h + 'px';
 
-      let labelText = '';
-      if (field.type === 'signature') labelText = '署名 (クリック)';
-      else if (field.type === 'text') labelText = 'テキスト (クリック)';
-      else if (field.type === 'date') labelText = '日付 (クリック)';
+      // 該当の枠が「自分の枠」か「相手の枠」かを判定
+      const isMyField = (field.signer_id === currentSignerId);
+      
+      // フィールド所有者の役割を特定する (甲か乙か)
+      const fieldOwner = serverSigners.find(s => s.id === field.signer_id);
+      const ownerRole = fieldOwner ? fieldOwner.role : 'SENDER';
 
-      fieldEl.innerHTML = `<span class="field-label">${labelText}</span>`;
+      if (isMyField) {
+        // --- 自分の担当枠 ---
+        fieldEl.className = `signer-input-field my-field ${ownerRole === 'SENDER' ? 'role-sender' : 'role-recipient'}`;
+        
+        let labelText = '';
+        if (field.type === 'signature') labelText = '署名 (クリック)';
+        else if (field.type === 'text') labelText = 'テキスト (クリック)';
+        else if (field.type === 'date') labelText = '日付 (クリック)';
 
-      // クリックイベントを設定して入力モーダルを表示
-      fieldEl.addEventListener('click', () => {
-        handleFieldClick(field.id, field.type, w, h);
-      });
+        if (field.value) {
+          // すでに値（Base64等）が入っている場合
+          fieldEl.classList.add('completed');
+          fieldEl.innerHTML = `<img src="${field.value}">`;
+          userInputData[field.id] = { type: field.type, width: w, height: h, value: field.value, isMine: true };
+        } else {
+          // 未入力の場合
+          fieldEl.innerHTML = `<span class="field-label">${labelText}</span>`;
+          userInputData[field.id] = { type: field.type, width: w, height: h, value: null, isMine: true };
+        }
+
+        // 契約自体が締結完了している、または自分が署名済みの場合はクリックできないようにする
+        const isSignedAlready = '<%= signer.signed_at %>' !== '' || '<%= contract.status %>' === 'SIGNED';
+        if (!isSignedAlready) {
+          fieldEl.addEventListener('click', () => {
+            handleFieldClick(field.id, field.type, w, h);
+          });
+        }
+      } else {
+        // --- 相手の担当枠 (非活性) ---
+        fieldEl.className = 'signer-input-field disabled';
+        
+        if (field.value) {
+          // 相手がすでに署名済みの場合はプレビュー表示
+          fieldEl.innerHTML = `<img src="${field.value}" style="opacity: 0.8;">`;
+        } else {
+          const ownerName = fieldOwner ? fieldOwner.name : '相手方';
+          fieldEl.innerHTML = `<span class="field-label" style="font-size: 8px;">${ownerName}の枠</span>`;
+        }
+      }
 
       pageContainer.appendChild(fieldEl);
-
-      // 初期値データ設定
-      userInputData[field.id] = {
-        type: field.type,
-        width: w,
-        height: h,
-        value: null // Base64データがここに入る
-      };
     });
   }
 
-  // フィールドクリック時のアクション
+  // フィールドクリックアクション (自分用)
   function handleFieldClick(fieldId, type, width, height) {
     activeFieldId = fieldId;
     
@@ -220,41 +306,32 @@
       openModal('textModal');
       setTimeout(() => document.getElementById('modalTextInput').focus(), 100);
     } else if (type === 'date') {
-      // 日付は今日の日付を自動入力 (フォーマット: YYYY年MM月DD日)
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const date = String(now.getDate()).padStart(2, '0');
       const dateStr = `${year}/${month}/${date}`;
-      
-      // フロント側で画像化して適用
       applyTextToField(fieldId, dateStr, width, height);
     }
   }
 
-  // テキストを透過PNG画像に変換してフィールドに適用する (フォント問題を回避するため)
   function applyTextToField(fieldId, text, width, height) {
     const canvas = document.createElement('canvas');
-    // 解像度を2倍にして綺麗に描画
     canvas.width = width * 2;
     canvas.height = height * 2;
     const ctx = canvas.getContext('2d');
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#0F172A'; // 濃紺の墨文字
+    ctx.fillStyle = '#0F172A';
     
-    // フォントサイズの自動調整
     const fontSize = Math.floor(height * 0.9);
     ctx.font = `500 ${fontSize}px sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    
-    // パディングを考慮して描画
     ctx.fillText(text, 10, canvas.height / 2);
     
     const base64Data = canvas.toDataURL('image/png');
     
-    // UI更新
     const fieldEl = document.getElementById(fieldId);
     fieldEl.classList.add('completed');
     fieldEl.innerHTML = `<img src="${base64Data}">`;
@@ -262,7 +339,6 @@
     userInputData[fieldId].value = base64Data;
   }
 
-  // モーダル制御
   function openModal(modalId) {
     document.getElementById(modalId).classList.add('show');
   }
@@ -278,9 +354,7 @@
     }
   }
 
-  // -------------------------------------------------------------
-  // 手書き署名用 Canvas (Signature Pad)
-  // -------------------------------------------------------------
+  // --- 手書き署名 (Canvas) ---
   const sigCanvas = document.getElementById('sig-canvas');
   const sigCtx = sigCanvas.getContext('2d');
   let isDrawing = false;
@@ -288,13 +362,10 @@
   let lastY = 0;
 
   function resizeSigCanvas() {
-    // コンテナのサイズに合わせてリサイズ
     const container = sigCanvas.parentElement;
     sigCanvas.width = container.clientWidth;
     sigCanvas.height = 180;
-    
-    // 初期スタイル設定
-    sigCtx.strokeStyle = '#0F172A'; // サインの色
+    sigCtx.strokeStyle = '#0F172A';
     sigCtx.lineWidth = 3;
     sigCtx.lineCap = 'round';
     sigCtx.lineJoin = 'round';
@@ -302,13 +373,9 @@
 
   function getMousePos(canvasDom, clientX, clientY) {
     const rect = canvasDom.getBoundingClientRect();
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top
-    };
+    return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
-  // マウスイベント
   sigCanvas.addEventListener('mousedown', (e) => {
     isDrawing = true;
     const pos = getMousePos(sigCanvas, e.clientX, e.clientY);
@@ -318,19 +385,16 @@
   sigCanvas.addEventListener('mousemove', (e) => {
     if (!isDrawing) return;
     const pos = getMousePos(sigCanvas, e.clientX, e.clientY);
-    
     sigCtx.beginPath();
     sigCtx.moveTo(lastX, lastY);
     sigCtx.lineTo(pos.x, pos.y);
     sigCtx.stroke();
-    
     [lastX, lastY] = [pos.x, pos.y];
   });
 
   sigCanvas.addEventListener('mouseup', () => isDrawing = false);
   sigCanvas.addEventListener('mouseout', () => isDrawing = false);
 
-  // タッチイベント (モバイル対応)
   sigCanvas.addEventListener('touchstart', (e) => {
     isDrawing = true;
     const touch = e.touches[0];
@@ -343,12 +407,10 @@
     if (!isDrawing) return;
     const touch = e.touches[0];
     const pos = getMousePos(sigCanvas, touch.clientX, touch.clientY);
-    
     sigCtx.beginPath();
     sigCtx.moveTo(lastX, lastY);
     sigCtx.lineTo(pos.x, pos.y);
     sigCtx.stroke();
-    
     [lastX, lastY] = [pos.x, pos.y];
     e.preventDefault();
   }, { passive: false });
@@ -359,9 +421,7 @@
     sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
   }
 
-  // 手書き署名を適用
   function saveSignature() {
-    // 描画が空かどうか簡易チェック（全ピクセル透明か調べる）
     const buffer = new Uint32Array(sigCtx.getImageData(0, 0, sigCanvas.width, sigCanvas.height).data.buffer);
     const hasDrawing = buffer.some(color => color !== 0);
 
@@ -371,20 +431,15 @@
     }
 
     const base64Data = sigCanvas.toDataURL('image/png');
-    
     const fieldId = activeFieldId;
     const fieldEl = document.getElementById(fieldId);
     fieldEl.classList.add('completed');
     fieldEl.innerHTML = `<img src="${base64Data}">`;
 
     userInputData[fieldId].value = base64Data;
-    
     closeModal('signatureModal');
   }
 
-  // -------------------------------------------------------------
-  // テキスト入力の適用
-  // -------------------------------------------------------------
   function saveTextInput() {
     const textVal = document.getElementById('modalTextInput').value.trim();
     if (!textVal) {
@@ -400,37 +455,37 @@
     closeModal('textModal');
   }
 
-  // -------------------------------------------------------------
-  // 署名結果の送信 (契約締結実行)
-  // -------------------------------------------------------------
+  // --- 署名結果の送信 (自分の分のみチェックして送信) ---
   async function submitSignature() {
     const agreementCheck = document.getElementById('agreementCheck');
     const submitBtn = document.getElementById('submitBtn');
 
     if (!agreementCheck.checked) {
-      alert('「契約書の内容に同意する」のチェックボックスにチェックを入れてください。');
+      alert('「電子署名を付与することに同意する」のチェックボックスにチェックを入れてください。');
       return;
     }
 
-    // すべてのフィールドが入力されているかチェック
-    const uncompleted = Object.entries(userInputData).filter(([id, data]) => data.value === null);
+    // 自分の担当枠 (isMine: true) のみで入力漏れがないかチェック
+    const uncompleted = Object.entries(userInputData).filter(([id, data]) => data.isMine && data.value === null);
     if (uncompleted.length > 0) {
-      alert('すべての入力エリアに記入・署名を行ってください。');
+      alert('あなたの担当するすべての入力エリアに記入・署名を行ってください。');
       return;
     }
 
-    if (!confirm('契約を締結します。よろしいですか？この操作は取り消せません。')) {
+    if (!confirm('署名を送信します。よろしいですか？送信後は書き換えできません。')) {
       return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> 締結処理中...';
+    submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> 送信中...';
     lucide.createIcons();
 
-    // fieldValues の形に成形 { [fieldId]: base64Data }
+    // 自分の入力した値のみを payload にセット
     const fieldValues = {};
     Object.entries(userInputData).forEach(([id, data]) => {
-      fieldValues[id] = data.value;
+      if (data.isMine) {
+        fieldValues[id] = data.value;
+      }
     });
 
     try {
@@ -442,20 +497,19 @@
 
       const result = await response.json();
       if (response.ok) {
-        alert('契約の締結が完了しました！');
-        // 詳細または完了画面へ
+        alert('署名を送信しました。');
         window.location.reload();
       } else {
-        alert('締結失敗: ' + (result.error || '不明なエラー'));
+        alert('送信失敗: ' + (result.error || '不明なエラー'));
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して契約を締結する';
+        submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して署名を送信する';
         lucide.createIcons();
       }
     } catch (err) {
       console.error(err);
       alert('通信エラーが発生しました。');
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して契約を締結する';
+      submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して署名を送信する';
       lucide.createIcons();
     }
   }

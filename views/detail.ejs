@@ -5,7 +5,7 @@
     <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> ダッシュボードに戻る
   </a>
   <h1>契約詳細情報</h1>
-  <p>送信した契約書のステータス確認、および署名用URLの管理が行えます。</p>
+  <p>契約書のステータス確認、および署名用URLの管理が行えます。</p>
 </div>
 
 <div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem; align-items: start;">
@@ -20,7 +20,7 @@
         </div>
         <div>
           <% if (contract.status === 'SENT') { %>
-            <span class="badge badge-sent" style="font-size: 0.85rem; padding: 0.4rem 1rem;">先方確認中</span>
+            <span class="badge badge-sent" style="font-size: 0.85rem; padding: 0.4rem 1rem;">署名手続き中</span>
           <% } else if (contract.status === 'SIGNED') { %>
             <span class="badge badge-signed" style="font-size: 0.85rem; padding: 0.4rem 1rem;">締結完了</span>
           <% } else { %>
@@ -41,87 +41,126 @@
       </div>
     </div>
 
-    <!-- 署名状況・ログカード -->
+    <!-- 署名状況カード (二者対応) -->
     <div class="glass-card">
-      <h3 style="display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.25rem;">
+      <h3 style="display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1.5rem;">
         <i data-lucide="user-check" style="color: var(--color-primary);"></i>
         署名者・合意証跡
       </h3>
 
-      <% if (signer) { %>
-        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-            <div>
-              <label style="margin-bottom: 0.25rem;">氏名</label>
-              <span style="font-weight: 500; font-size: 1.1rem; color: #fff;"><%= signer.name %></span>
-            </div>
-            <div>
-              <label style="margin-bottom: 0.25rem;">メールアドレス</label>
-              <span style="font-weight: 500;"><%= signer.email %></span>
-            </div>
+      <div style="display: flex; flex-direction: column; gap: 2rem;">
+        <!-- 署名者1: 送信者 (自分) -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h4 style="color: var(--color-primary); font-size: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+              <span style="font-size: 0.8rem; padding: 0.2rem 0.5rem; background: rgba(99, 102, 241, 0.2); border-radius: 4px;">甲</span>
+              署名者1: <%= sender.name %> (自分)
+            </h4>
+            <% if (sender.signed_at) { %>
+              <span class="badge badge-signed">署名済</span>
+            <% } else { %>
+              <span class="badge badge-sent">署名待ち</span>
+            <% } %>
           </div>
 
-          <% if (contract.status === 'SIGNED' && signer.signed_at) { %>
-            <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 8px; padding: 1.25rem; margin-top: 0.5rem;">
-              <h4 style="color: var(--color-secondary); font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
-                <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
-                合意証跡ログ (証拠力記録)
-              </h4>
-              <div style="display: grid; grid-template-columns: 120px 1fr; gap: 0.5rem; font-size: 0.85rem;">
-                <div style="color: var(--text-secondary);">署名日時:</div>
-                <div style="color: #fff; font-weight: 500;"><%= new Date(signer.signed_at).toLocaleString('ja-JP') %> (JST)</div>
-                
-                <div style="color: var(--text-secondary);">IPアドレス:</div>
-                <div style="font-family: monospace; color: #fff;"><%= signer.ip_address %></div>
-                
-                <div style="color: var(--text-secondary);">環境 (UA):</div>
-                <div style="color: var(--text-secondary); word-break: break-all;"><%= signer.user_agent %></div>
+          <div style="padding-left: 1.5rem; border-left: 2px solid rgba(99, 102, 241, 0.3);">
+            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              メールアドレス: <%= sender.email %>
+            </div>
+
+            <% if (sender.signed_at) { %>
+              <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem;">
+                <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.25rem;">
+                  <div style="color: var(--text-secondary);">署名日時:</div>
+                  <div style="color: #fff;"><%= new Date(sender.signed_at).toLocaleString('ja-JP') %> (JST)</div>
+                  <div style="color: var(--text-secondary);">IPアドレス:</div>
+                  <div style="font-family: monospace; color: #fff;"><%= sender.ip_address %></div>
+                </div>
               </div>
-            </div>
-          <% } else { %>
-            <div style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 8px; padding: 1rem; color: var(--text-secondary); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
-              <i data-lucide="clock" style="color: var(--color-warning); flex-shrink: 0;"></i>
-              相手方の署名入力を待っています。URLを共有してください。
-            </div>
-          <% } %>
+            <% } %>
+          </div>
         </div>
-      <% } else { %>
-        <p style="margin-bottom: 0;">署名者情報が登録されていません。</p>
-      <% } %>
+
+        <!-- 署名者2: 受信者 (相手) -->
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h4 style="color: var(--color-warning); font-size: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+              <span style="font-size: 0.8rem; padding: 0.2rem 0.5rem; background: rgba(245, 158, 11, 0.2); border-radius: 4px; color: var(--color-warning);">乙</span>
+              署名者2: <%= recipient.name %> (相手)
+            </h4>
+            <% if (recipient.signed_at) { %>
+              <span class="badge badge-signed">署名済</span>
+            <% } else { %>
+              <span class="badge badge-sent">署名待ち</span>
+            <% } %>
+          </div>
+
+          <div style="padding-left: 1.5rem; border-left: 2px solid rgba(245, 158, 11, 0.3);">
+            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              メールアドレス: <%= recipient.email %>
+            </div>
+
+            <% if (recipient.signed_at) { %>
+              <div style="background: rgba(16, 185, 129, 0.03); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem;">
+                <div style="display: grid; grid-template-columns: 100px 1fr; gap: 0.25rem;">
+                  <div style="color: var(--text-secondary);">署名日時:</div>
+                  <div style="color: #fff;"><%= new Date(recipient.signed_at).toLocaleString('ja-JP') %> (JST)</div>
+                  <div style="color: var(--text-secondary);">IPアドレス:</div>
+                  <div style="font-family: monospace; color: #fff;"><%= recipient.ip_address %></div>
+                </div>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- サイドバー（アクション） -->
   <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-    <% if (contract.status === 'SENT' && signUrl) { %>
-      <div class="glass-card" style="padding: 1.5rem; border-color: rgba(245, 158, 11, 0.25);">
-        <h3 style="font-size: 1.05rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-          <i data-lucide="link" style="color: var(--color-warning);"></i>
-          署名用URLの共有
+    <!-- 署名URL共有 (甲/自分用) -->
+    <% if (contract.status === 'SENT' && senderSignUrl && !sender.signed_at) { %>
+      <div class="glass-card" style="padding: 1.25rem; border-color: rgba(99, 102, 241, 0.25);">
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; color: var(--color-primary);">
+          <i data-lucide="pen-tool" style="width: 16px; height: 16px;"></i>
+          甲（自分）の署名
         </h3>
-        <p style="font-size: 0.8rem; margin-bottom: 1rem;">
-          署名者に以下のURLを送付してください。URLにアクセスすると署名手続きを行えます。
+        <p style="font-size: 0.75rem; margin-bottom: 0.75rem; color: var(--text-secondary);">
+          以下のURLにアクセスし、まずはご自身の署名を完了させてください。
         </p>
-
-        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem; word-break: break-all; font-family: monospace; font-size: 0.8rem; margin-bottom: 1rem; color: var(--text-secondary);">
-          <%= signUrl %>
-        </div>
-
-        <button onclick="copyToClipboard('<%= signUrl %>')" class="btn btn-primary" style="width: 100%; font-size: 0.9rem;">
-          <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
-          URLをコピー
+        <button onclick="copyToClipboard('<%= senderSignUrl %>', '甲（自分）')" class="btn btn-primary" style="width: 100%; font-size: 0.85rem; padding: 0.6rem;">
+          <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+          署名URLをコピー
         </button>
       </div>
     <% } %>
 
+    <!-- 署名URL共有 (乙/相手用) -->
+    <% if (contract.status === 'SENT' && recipientSignUrl && !recipient.signed_at) { %>
+      <div class="glass-card" style="padding: 1.25rem; border-color: rgba(245, 158, 11, 0.25);">
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; color: var(--color-warning);">
+          <i data-lucide="link" style="width: 16px; height: 16px;"></i>
+          乙（相手）の署名URL
+        </h3>
+        <p style="font-size: 0.75rem; margin-bottom: 0.75rem; color: var(--text-secondary);">
+          相手方に以下のURLを共有し、署名を依頼してください。
+        </p>
+        <button onclick="copyToClipboard('<%= recipientSignUrl %>', '乙（相手）')" class="btn btn-primary" style="width: 100%; font-size: 0.85rem; padding: 0.6rem; background: var(--color-warning); color: #0b0f19;">
+          <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+          署名URLをコピー
+        </button>
+      </div>
+    <% } %>
+
+    <!-- 締結完了時のダウンロード -->
     <% if (contract.status === 'SIGNED' && contract.signed_file_path) { %>
       <div class="glass-card" style="padding: 1.5rem; border-color: rgba(16, 185, 129, 0.25);">
-        <h3 style="font-size: 1.05rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+        <h3 style="font-size: 1.05rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; color: var(--color-secondary);">
           <i data-lucide="check" style="color: var(--color-secondary);"></i>
           契約締結完了
         </h3>
-        <p style="font-size: 0.8rem; margin-bottom: 1.25rem;">
-          本契約は正常に署名され、合意証明書を含むPDFが作成されました。
+        <p style="font-size: 0.8rem; margin-bottom: 1.25rem; color: var(--text-secondary);">
+          双方の署名が完了し、合意証明書付きの契約書PDFが作成されました。
         </p>
         
         <a href="<%= contract.signed_file_path %>" download class="btn btn-primary" style="width: 100%; background: var(--color-secondary); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
@@ -136,8 +175,8 @@
         <i data-lucide="file" style="color: var(--text-muted);"></i>
         オリジナル書類
       </h3>
-      <p style="font-size: 0.8rem; margin-bottom: 1.25rem;">
-        署名が行われる前のオリジナルのドキュメントPDFです。
+      <p style="font-size: 0.8rem; margin-bottom: 1.25rem; color: var(--text-secondary);">
+        署名が行われる前のオリジナルの契約書PDFです。
       </p>
       
       <a href="<%= contract.file_path %>" target="_blank" class="btn btn-secondary" style="width: 100%;">
@@ -149,13 +188,13 @@
 </div>
 
 <script>
-  async function copyToClipboard(text) {
+  async function copyToClipboard(text, label) {
     try {
       await navigator.clipboard.writeText(text);
-      alert('URLをクリップボードにコピーしました！署名者の方に共有してください。');
+      alert(`${label}の署名URLをクリップボードにコピーしました！`);
     } catch (err) {
       console.error(err);
-      alert('URLのコピーに失敗しました。お手数ですが手動で選択してコピーしてください。');
+      alert('URLのコピーに失敗しました。お手数ですが、URLを手動でコピーしてください。');
     }
   }
 </script>
