@@ -215,75 +215,9 @@
     alert('PDFの読み込みに失敗しました。');
   });
 
-  // ページ上の入力枠を描画
+  // ページ上の入力枠を描画 (署名不要・チェックのみで完了するため枠描画はスキップ)
   function renderFieldsForPage(pageContainer, pageNum) {
-    const pWidth = pageContainer.clientWidth;
-    const pHeight = pageContainer.clientHeight;
-
-    const pageFields = serverFields.filter(f => f.page_number === pageNum);
-
-    pageFields.forEach(field => {
-      const x = field.x_ratio * pWidth;
-      const y = field.y_ratio * pHeight;
-      const w = field.width_ratio * pWidth;
-      const h = field.height_ratio * pHeight;
-
-      const fieldEl = document.createElement('div');
-      fieldEl.id = field.id;
-      fieldEl.style.left = x + 'px';
-      fieldEl.style.top = y + 'px';
-      fieldEl.style.width = w + 'px';
-      fieldEl.style.height = h + 'px';
-
-      // 該当の枠が「自分の枠」か「相手の枠」かを判定
-      const isMyField = (field.signer_id === currentSignerId);
-      
-      // フィールド所有者の役割を特定する (甲か乙か)
-      const fieldOwner = serverSigners.find(s => s.id === field.signer_id);
-      const ownerRole = fieldOwner ? fieldOwner.role : 'SENDER';
-
-      if (isMyField) {
-        // --- 自分の担当枠 ---
-        fieldEl.className = `signer-input-field my-field ${ownerRole === 'SENDER' ? 'role-sender' : 'role-recipient'}`;
-        
-        let labelText = '';
-        if (field.type === 'signature') labelText = '署名 (クリック)';
-        else if (field.type === 'text') labelText = 'テキスト (クリック)';
-        else if (field.type === 'date') labelText = '日付 (クリック)';
-
-        if (field.value) {
-          // すでに値（Base64等）が入っている場合
-          fieldEl.classList.add('completed');
-          fieldEl.innerHTML = `<img src="${field.value}">`;
-          userInputData[field.id] = { type: field.type, width: w, height: h, value: field.value, isMine: true };
-        } else {
-          // 未入力の場合
-          fieldEl.innerHTML = `<span class="field-label">${labelText}</span>`;
-          userInputData[field.id] = { type: field.type, width: w, height: h, value: null, isMine: true };
-        }
-
-        // 契約自体が締結完了している、または自分が署名済みの場合はクリックできないようにする
-        const isSignedAlready = '<%= signer.signed_at %>' !== '' || '<%= contract.status %>' === 'SIGNED';
-        if (!isSignedAlready) {
-          fieldEl.addEventListener('click', () => {
-            handleFieldClick(field.id, field.type, w, h);
-          });
-        }
-      } else {
-        // --- 相手の担当枠 (非活性) ---
-        fieldEl.className = 'signer-input-field disabled';
-        
-        if (field.value) {
-          // 相手がすでに署名済みの場合はプレビュー表示
-          fieldEl.innerHTML = `<img src="${field.value}" style="opacity: 0.8;">`;
-        } else {
-          const ownerName = fieldOwner ? fieldOwner.name : '相手方';
-          fieldEl.innerHTML = `<span class="field-label" style="font-size: 8px;">${ownerName}の枠</span>`;
-        }
-      }
-
-      pageContainer.appendChild(fieldEl);
-    });
+    return;
   }
 
   // フィールドクリックアクション (自分用)

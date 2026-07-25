@@ -313,29 +313,6 @@ ${formattedDate}
     color: rgb(0, 0, 0)
   });
 
-  currentY -= 40;
-
-  // ---- 署名（手書きスペース）----
-  if (fontPath) {
-    page.drawText('署名：', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont, color: rgb(0, 0, 0) });
-  } else {
-    page.drawText('Signature:', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont });
-  }
-  const sigLabelWidth = customFont.widthOfTextAtSize(fontPath ? '署名：' : 'Signature:', sigFontSize);
-  // 手書き署名のためのBOX（縦50px）
-  const sigBoxStartX = indent + sigLabelWidth + 4;
-  const sigBoxEndX = sigBoxStartX + 200;
-  const sigBoxTopY = currentY - sigFontSize + 2;
-  const sigBoxBottomY = sigBoxTopY - 50;
-  page.drawRectangle({
-    x: sigBoxStartX,
-    y: sigBoxBottomY,
-    width: sigBoxEndX - sigBoxStartX,
-    height: 50,
-    borderColor: rgb(0.6, 0.6, 0.6),
-    borderWidth: 0.5,
-  });
-
   return await pdfDoc.save();
 }
 
