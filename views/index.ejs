@@ -1,21 +1,87 @@
 <%- include('partials/header', { title: 'ダッシュボード' }) %>
 
+<style>
+  /* 画面全体ドラッグドロップオーバーレイ */
+  .drag-drop-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(11, 15, 25, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    pointer-events: none;
+  }
+  
+  .drag-drop-overlay.show {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  
+  .drag-drop-overlay-content {
+    border: 3px dashed var(--color-primary);
+    border-radius: 20px;
+    padding: 3rem 2rem;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.03);
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    pointer-events: none;
+  }
+  
+  .drag-drop-overlay.show .drag-drop-overlay-content {
+    transform: scale(1);
+  }
+  
+  @keyframes bounce-up-down {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  
+  .bounce-icon {
+    animation: bounce-up-down 2s infinite ease-in-out;
+  }
+</style>
+
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
   <div>
-    <h1>契約書ダッシュボード</h1>
-    <p>契約書のアップロード、送信、締結状況の管理をここで行います。</p>
+    <h1>契約ドキュメント</h1>
+    <p style="margin-bottom: 0;">アップロードされた契約書、署名ステータスの確認・署名枠配置が行えます。</p>
   </div>
   <button class="btn btn-primary" onclick="openModal()">
-    <i data-lucide="plus"></i>
-    新規契約書をアップロード
+    <i data-lucide="plus" style="width: 18px; height: 18px;"></i> 新規契約書アップロード
   </button>
 </div>
 
-<div class="glass-card">
+<div class="glass-card" style="padding: 1.5rem; margin-bottom: 2rem;">
+  <div style="font-size: 0.95rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
+    <i data-lucide="info" style="color: var(--color-primary); flex-shrink: 0;"></i>
+    <span><strong>ヒント:</strong> この画面のどこにでも直接PDFファイルをドラッグ＆ドロップするだけで、すばやくアップロード画面を起動できます。</span>
+  </div>
+</div>
+
+<div class="dashboard-container">
   <% if (contracts.length === 0) { %>
-    <div style="text-align: center; padding: 3rem 1rem; color: var(--text-secondary);">
-      <i data-lucide="file-text" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
-      <p style="margin-bottom: 0;">アップロードされた契約書はありません。新規作成から開始してください。</p>
+    <div style="text-align: center; padding: 5rem 1rem; color: var(--text-secondary); border: 2px dashed rgba(255,255,255,0.05); border-radius: 12px; background: rgba(0,0,0,0.1);">
+      <i data-lucide="file-text" style="width: 48px; height: 48px; margin-bottom: 1.5rem; opacity: 0.5; color: var(--color-primary);"></i>
+      <h3 style="color: #fff; margin-bottom: 0.5rem; font-size: 1.2rem;">契約書がありません</h3>
+      <p style="margin-bottom: 1.5rem; font-size: 0.9rem;">新規アップロードボタンを押すか、PDFをここにドロップして開始してください。</p>
     </div>
   <% } else { %>
     <div class="table-container">
@@ -59,7 +125,7 @@
                 <% if (contract.status === 'DRAFT') { %>
                   <span class="badge badge-draft">下書き</span>
                 <% } else if (contract.status === 'SENT') { %>
-                  <span class="badge badge-sent">先方確認中</span>
+                  <span class="badge badge-sent">署名手続き中</span>
                 <% } else if (contract.status === 'SIGNED') { %>
                   <span class="badge badge-signed">締結完了</span>
                 <% } else { %>
@@ -136,6 +202,15 @@
   </div>
 </div>
 
+<!-- 画面全体ドラッグ＆ドロップ用オーバーレイ -->
+<div class="drag-drop-overlay" id="dragDropOverlay">
+  <div class="drag-drop-overlay-content">
+    <i data-lucide="file-up" class="bounce-icon" style="width: 56px; height: 56px; color: var(--color-primary);"></i>
+    <h3 style="font-size: 1.25rem; margin-bottom: 0; color: #fff;">ここにPDFをドロップしてアップロード</h3>
+    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0;">ドロップすると自動でアップロード画面を起動します</p>
+  </div>
+</div>
+
 <script>
   function openModal() {
     const modal = document.getElementById('uploadModal');
@@ -171,54 +246,98 @@
     const fileInfo = document.getElementById('fileInfo');
     const dropZoneText = document.getElementById('dropZoneText');
     const titleInput = document.getElementById('contractTitle');
+    const overlay = document.getElementById('dragDropOverlay');
 
-    if (!dropZone) return;
-
-    // ドラッグオーバー時
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-
-    // ドラッグアウト・ドラッグ終了時
-    ['dragleave', 'dragend'].forEach(type => {
-      dropZone.addEventListener(type, () => {
-        dropZone.classList.remove('drag-over');
+    // 1. アップロードモーダル内のインラインドロップゾーンの制御
+    if (dropZone) {
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
       });
-    });
 
-    // ドロップ時
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
+      ['dragleave', 'dragend'].forEach(type => {
+        dropZone.addEventListener(type, () => {
+          dropZone.classList.remove('drag-over');
+        });
+      });
 
-      if (e.dataTransfer.files.length > 0) {
-        const file = e.dataTransfer.files[0];
-        if (file.type === 'application/pdf') {
-          fileInput.files = e.dataTransfer.files;
-          updateFileInfo(file);
-        } else {
-          alert('PDFファイルのみアップロード可能です。');
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+
+        if (e.dataTransfer.files.length > 0) {
+          const file = e.dataTransfer.files[0];
+          if (file.type === 'application/pdf') {
+            fileInput.files = e.dataTransfer.files;
+            updateFileInfo(file);
+          } else {
+            alert('PDFファイルのみアップロード可能です。');
+          }
         }
-      }
-    });
+      });
+    }
 
-    // ファイル選択ダイアログからの選択時
-    fileInput.addEventListener('change', () => {
-      if (fileInput.files.length > 0) {
-        updateFileInfo(fileInput.files[0]);
-      }
-    });
+    if (fileInput) {
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+          updateFileInfo(fileInput.files[0]);
+        }
+      });
+    }
 
     function updateFileInfo(file) {
-      fileInfo.textContent = `選択されたファイル: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-      fileInfo.style.display = 'block';
-      dropZoneText.style.display = 'none';
+      if (fileInfo && dropZoneText && titleInput) {
+        fileInfo.textContent = `選択されたファイル: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+        fileInfo.style.display = 'block';
+        dropZoneText.style.display = 'none';
 
-      // 契約書名が空ならファイル名を自動セット (拡張子除く)
-      if (!titleInput.value) {
-        titleInput.value = file.name.replace(/\.[^/.]+$/, "");
+        if (!titleInput.value) {
+          titleInput.value = file.name.replace(/\.[^/.]+$/, "");
+        }
       }
+    }
+
+    // 2. 画面全体（Window）ドラッグ＆ドロップの制御
+    if (overlay) {
+      let dragCounter = 0;
+
+      window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        if (dragCounter === 1) {
+          overlay.classList.add('show');
+        }
+      });
+
+      window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+      });
+
+      window.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter === 0) {
+          overlay.classList.remove('show');
+        }
+      });
+
+      window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        overlay.classList.remove('show');
+
+        if (e.dataTransfer.files.length > 0) {
+          const file = e.dataTransfer.files[0];
+          if (file.type === 'application/pdf') {
+            // モーダルを開いてバインド
+            openModal();
+            fileInput.files = e.dataTransfer.files;
+            updateFileInfo(file);
+          } else {
+            alert('PDFファイルのみアップロード可能です。');
+          }
+        }
+      });
     }
   });
 
