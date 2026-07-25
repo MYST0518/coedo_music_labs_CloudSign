@@ -352,8 +352,8 @@ app.post('/api/contracts/:id/send', async (req, res) => {
     await dbRun('BEGIN TRANSACTION');
 
     await dbRun(
-      'INSERT INTO signers (id, contract_id, name, email, role, access_token) VALUES (?, ?, ?, ?, ?, ?)',
-      [senderId, contractId, senderName, senderEmail, 'SENDER', senderToken]
+      'INSERT INTO signers (id, contract_id, name, email, role, access_token, signed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [senderId, contractId, senderName, senderEmail, 'SENDER', senderToken, now]
     );
     await dbRun(
       'INSERT INTO signers (id, contract_id, name, email, role, access_token) VALUES (?, ?, ?, ?, ?, ?)',
@@ -846,10 +846,10 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
         [contractId, `${template.title}_${recipientName}`, 'SENT', newPdfFilePath, now, now]
       );
 
-      // 署名者2名
+      // 署名者2名 (甲は最初から署名済み)
       await dbRun(
-        'INSERT INTO signers (id, contract_id, name, email, role, access_token) VALUES (?, ?, ?, ?, ?, ?)',
-        [senderId, contractId, senderName, senderEmail, 'SENDER', senderToken]
+        'INSERT INTO signers (id, contract_id, name, email, role, access_token, signed_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [senderId, contractId, senderName, senderEmail, 'SENDER', senderToken, now]
       );
       await dbRun(
         'INSERT INTO signers (id, contract_id, name, email, role, access_token) VALUES (?, ?, ?, ?, ?, ?)',
