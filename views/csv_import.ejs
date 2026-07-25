@@ -330,8 +330,8 @@
   function buildSelectOptions(headers) {
     const selectElements = document.querySelectorAll('.csv-col-select');
     selectElements.forEach(select => {
-      const hasPrefill = select.classList.contains('prefill-map-select');
-      select.innerHTML = hasPrefill ? '<option value="">-- 印字しない --</option>' : '';
+      const isOptional = select.id === 'recipientAddressCol' || select.classList.contains('prefill-map-select');
+      select.innerHTML = isOptional ? '<option value="">-- 流し込まない --</option>' : '';
 
       headers.forEach(h => {
         const option = document.createElement('option');
@@ -347,6 +347,7 @@
       if (id === 'senderNameCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('名') || h.includes('氏')));
       else if (id === 'senderEmailCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('メール') || h.includes('アドレス')));
       else if (id === 'recipientNameCol') matchedHeader = headers.find(h => h.includes('氏名') || h.includes('氏') || h.includes('名')) || headers.find(h => h.includes('相手') || h.includes('乙'));
+      else if (id === 'recipientAddressCol') matchedHeader = headers.find(h => h.includes('住所') || h.includes('所在地') || h.includes('居所'));
       else if (id === 'recipientEmailCol') matchedHeader = headers.find(h => h === 'メールアドレス' || h.includes('メール') || h.includes('アドレス'));
       else if (placeholder) {
         matchedHeader = headers.find(h => h === placeholder) || headers.find(h => h.includes(placeholder));
