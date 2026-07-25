@@ -283,7 +283,7 @@ app.post('/api/contracts/:id/send', async (req, res) => {
       const targetSignerId = (field.role === 'SENDER') ? senderId : recipientId;
 
       await dbRun(
-        'INSERT INTO fields (id, contract_id, signer_id, type, page_number, x_ratio, y_ratio, width_ratio, height_ratio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO fields (id, contract_id, signer_id, type, page_number, x_ratio, y_ratio, width_ratio, height_ratio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [fieldId, contractId, targetSignerId, field.type, field.pageNumber, field.xRatio, field.yRatio, field.widthRatio, field.heightRatio]
       );
     }
