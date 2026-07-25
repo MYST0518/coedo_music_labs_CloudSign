@@ -443,7 +443,7 @@
       }
     } catch (err) {
       console.error(err);
-      alert('通信エラーまたは処理エラーが発生しました。');
+      alert('通信エラーまたは処理エラーが発生しました。\n詳細: ' + err.message);
       executeBtn.disabled = false;
       executeBtn.innerHTML = '<i data-lucide="play" style="width: 18px; height: 18px;"></i> 一括生成 ＆ 送信を実行';
       lucide.createIcons();

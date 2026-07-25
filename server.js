@@ -782,6 +782,9 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
       customFont = fontBytes; // 各ループ内で埋め込むため、ここではバイトデータを保持
     }
 
+    const originalPdfPath = path.join(dataDir, template.file_path);
+    const pdfBytes = fs.readFileSync(originalPdfPath);
+
     const createdContracts = [];
 
     // 行ごとにPDFを合成 & 契約書を発行
@@ -815,8 +818,6 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
       }
 
       // --- ① PDFに差し込み文字（prefill）を印字合成する ---
-      const originalPdfPath = path.join(dataDir, template.file_path);
-      const pdfBytes = fs.readFileSync(originalPdfPath);
       const pdfDoc = await PDFDocument.load(pdfBytes);
       pdfDoc.registerFontkit(fontkit);
       const pages = pdfDoc.getPages();
@@ -941,6 +942,9 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
       }
 
       createdContracts.push({ contractId, recipientName });
+
+      // メモリ解放を促すための短い非同期スリープ
+      await new Promise(resolve => setTimeout(resolve, 150));
     }
 
     res.json({ success: true, count: createdContracts.length });
