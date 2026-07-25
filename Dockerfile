@@ -17,4 +17,4 @@ RUN mkdir -p /data/uploads/signed
 EXPOSE 3000
 
 # 起動前にデータベース初期化を実行し、サーバーを立ち上げる
-CMD ["sh", "-c", "node init_db.js && node server.js"]
+CMD ["sh", "-c", "node build_pdf.js && node init_db.js && node server.js"]

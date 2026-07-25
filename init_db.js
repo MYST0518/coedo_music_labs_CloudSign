@@ -106,6 +106,67 @@ db.serialize(() => {
     )
   `);
 
+  // 暴音族オムニバス契約書テンプレートの自動登録 (シードデータ)
+  const templateId = 'buon-omnibus';
+  const now = new Date().toISOString();
+
+  db.get("SELECT id FROM templates WHERE id = ?", [templateId], (err, row) => {
+    if (err) {
+      console.error(err);
+      db.close();
+      return;
+    }
+    if (!row) {
+      db.run(
+        "INSERT INTO templates (id, title, file_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        [
+          templateId,
+          "「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ-」音楽原盤制作契約書",
+          "/uploads/templates/buon_template.pdf",
+          now,
+          now
+        ],
+        (err) => {
+          if (err) {
+            console.error("Failed to seed template:", err);
+            db.close();
+            return;
+          }
+          console.log("Seeded 'buon-omnibus' template.");
+
+          // template_fields のインサート
+          const fields = [
+            // 1ページ目：氏名（prefill）
+            { id: 'tf_b_1', type: 'prefill', role: 'SYSTEM', name: '氏名', page: 1, x: 0.69, y: 0.089, w: 0.18, h: 0.02 },
+            // 4ページ目：氏名（prefill）
+            { id: 'tf_b_2', type: 'prefill', role: 'SYSTEM', name: '氏名', page: 4, x: 0.16, y: 0.885, w: 0.40, h: 0.02 },
+            // 4ページ目：住所（prefill）
+            { id: 'tf_b_3', type: 'prefill', role: 'SYSTEM', name: '住所', page: 4, x: 0.16, y: 0.855, w: 0.40, h: 0.02 },
+            // 4ページ目：甲の署名（SENDER signature）
+            { id: 'tf_b_4', type: 'signature', role: 'SENDER', name: null, page: 4, x: 0.10, y: 0.77, w: 0.20, h: 0.06 },
+            // 4ページ目：乙の署名（RECIPIENT signature）
+            { id: 'tf_b_5', type: 'signature', role: 'RECIPIENT', name: null, page: 4, x: 0.16, y: 0.908, w: 0.20, h: 0.06 }
+          ];
+
+          const stmt = db.prepare(`
+            INSERT INTO template_fields (id, template_id, type, signer_role, placeholder_name, page_number, x_ratio, y_ratio, width_ratio, height_ratio)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+
+          fields.forEach(f => {
+            stmt.run([f.id, templateId, f.type, f.role, f.name, f.page, f.x, f.y, f.w, f.h]);
+          });
+          stmt.finalize((err) => {
+            if (err) console.error(err);
+            console.log("Seeded template fields for 'buon-omnibus'.");
+            db.close();
+          });
+        }
+      );
+    } else {
+      db.close();
+    }
+  });
+
   console.log('Database tables initialized successfully with templates schema.');
-  db.close();
 });
