@@ -64,6 +64,8 @@ if (smtpHost && smtpUser && smtpPass) {
   console.log('SMTP variables are not fully configured. Automated emails will be disabled.');
 }
 
+const smtpFrom = process.env.SMTP_FROM || smtpUser;
+
 async function sendMail({ to, subject, html, attachments = [] }) {
   if (!transporter) {
     console.warn(`[Mail Skipped] SMTP not configured. Mail to ${to} was not sent.`);
@@ -71,7 +73,7 @@ async function sendMail({ to, subject, html, attachments = [] }) {
   }
   try {
     const info = await transporter.sendMail({
-      from: `"Mini Sign" <${smtpUser}>`,
+      from: `"Mini Sign" <${smtpFrom}>`,
       to,
       subject,
       html,
