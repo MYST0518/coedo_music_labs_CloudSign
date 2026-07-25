@@ -5,6 +5,7 @@ const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
 const nodemailer = require('nodemailer');
 
 const app = express();
@@ -460,6 +461,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       const originalPdfPath = path.join(dataDir, contract.file_path);
       const pdfBytes = fs.readFileSync(originalPdfPath);
       const pdfDoc = await PDFDocument.load(pdfBytes);
+      pdfDoc.registerFontkit(fontkit);
       const pages = pdfDoc.getPages();
 
       const fields = await dbAll('SELECT * FROM fields WHERE contract_id = ?', [contract.id]);
@@ -816,6 +818,7 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
       const originalPdfPath = path.join(dataDir, template.file_path);
       const pdfBytes = fs.readFileSync(originalPdfPath);
       const pdfDoc = await PDFDocument.load(pdfBytes);
+      pdfDoc.registerFontkit(fontkit);
       const pages = pdfDoc.getPages();
 
       // 日本語フォントの組み込み

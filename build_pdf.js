@@ -1,4 +1,5 @@
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
 const fs = require('fs');
 const path = require('path');
 
@@ -114,6 +115,7 @@ async function main() {
   const contractTextLines = lines.slice(startIdx);
 
   const pdfDoc = await PDFDocument.create();
+  pdfDoc.registerFontkit(fontkit);
   
   // 本番環境（Alpine）の日本語フォントパスの自動探索
   const possiblePaths = [
