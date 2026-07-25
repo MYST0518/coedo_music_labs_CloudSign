@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
-const { PDFDocument, StandardFonts } = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const nodemailer = require('nodemailer');
 const { buildContractPdf } = require('./build_pdf');
@@ -573,7 +573,7 @@ app.post('/api/sign/:token/submit', async (req, res) => {
           start: { x: 50, y: currentY - 80 },
           end: { x: pWidth - 50, y: currentY - 80 },
           thickness: 0.5,
-          color: { r: 0.8, g: 0.8, b: 0.8 }
+          color: rgb(0.8, 0.8, 0.8)
         });
 
         currentY -= 100;
