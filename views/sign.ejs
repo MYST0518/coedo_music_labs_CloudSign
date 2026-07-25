@@ -83,14 +83,7 @@
       
       <ol style="padding-left: 1.25rem; font-size: 0.85rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
         <li>左側の書面をスクロールして内容をご確認ください。</li>
-        <li>
-          <span style="font-weight: 600; <%= signer.role === 'SENDER' ? 'color: var(--color-primary);' : 'color: var(--color-warning);' %>">
-            <%= signer.role === 'SENDER' ? '青色で縁取られた枠（甲）' : 'オレンジ色で縁取られた枠（乙）' %>
-          </span>
-          をクリックして、サインやテキストを入力してください。
-        </li>
-        <li style="color: var(--text-muted);">グレー色の枠は相手方の入力枠です（入力できません）。</li>
-        <li>すべての入力が完了したら、同意チェックをして署名を送信します。</li>
+        <li>書面内容をご確認の上、下部の同意チェックを入れて確定ボタンを押してください。</li>
       </ol>
 
       <div style="border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
@@ -104,7 +97,7 @@
         <% if (!signer.signed_at && contract.status !== 'SIGNED') { %>
           <button onclick="submitSignature()" class="btn btn-primary" style="width: 100%;" id="submitBtn">
             <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
-            同意して署名を送信する
+            同意して確定する
           </button>
         <% } else { %>
           <button class="btn btn-secondary" style="width: 100%; cursor: not-allowed;" disabled>
@@ -465,19 +458,20 @@
       return;
     }
 
-    // 自分の担当枠 (isMine: true) のみで入力漏れがないかチェック
-    const uncompleted = Object.entries(userInputData).filter(([id, data]) => data.isMine && data.value === null);
-    if (uncompleted.length > 0) {
-      alert('あなたの担当するすべての入力エリアに記入・署名を行ってください。');
-      return;
-    }
+    // 自分の担当枠 (isMine: true) で未入力がある場合は自動記名データをセット
+    const currentSignerName = '<%= signer.name %>';
+    Object.entries(userInputData).forEach(([id, data]) => {
+      if (data.isMine && (data.value === null || data.value === '')) {
+        data.value = currentSignerName;
+      }
+    });
 
-    if (!confirm('署名を送信します。よろしいですか？送信後は書き換えできません。')) {
+    if (!confirm('契約内容に同意し、手続きを確定します。よろしいですか？完了後は書き換えできません。')) {
       return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> 送信中...';
+    submitBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> 処理中...';
     lucide.createIcons();
 
     // 自分の入力した値のみを payload にセット
@@ -497,19 +491,19 @@
 
       const result = await response.json();
       if (response.ok) {
-        alert('署名を送信しました。');
+        alert('手続きが正常に完了しました。');
         window.location.reload();
       } else {
-        alert('送信失敗: ' + (result.error || '不明なエラー'));
+        alert('処理失敗: ' + (result.error || '不明なエラー'));
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して署名を送信する';
+        submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して確定する';
         lucide.createIcons();
       }
     } catch (err) {
       console.error(err);
       alert('通信エラーが発生しました。');
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して署名を送信する';
+      submitBtn.innerHTML = '<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i> 同意して確定する';
       lucide.createIcons();
     }
   }
