@@ -152,6 +152,22 @@
       </div>
     <% } %>
 
+    <!-- 手動メール送信カード -->
+    <div class="glass-card" style="padding: 1.5rem; border-color: rgba(99, 102, 241, 0.3);">
+      <h3 style="font-size: 1.05rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; color: #a5b4fc;">
+        <i data-lucide="mail" style="color: #a5b4fc;"></i>
+        案内メール送信
+      </h3>
+      <p style="font-size: 0.8rem; margin-bottom: 1.25rem; color: var(--text-secondary);">
+        相手方 (<strong><%= recipient ? recipient.name : '' %></strong> / <%= recipient ? recipient.email : '' %>) に確認依頼メールを送信します。
+      </p>
+      
+      <button onclick="sendContractEmail('<%= contract.id %>', '<%= contract.title %>')" class="btn btn-primary" style="width: 100%;">
+        <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+        メールを送信する
+      </button>
+    </div>
+
     <!-- 締結完了時のダウンロード -->
     <% if (contract.status === 'SIGNED' && contract.signed_file_path) { %>
       <div class="glass-card" style="padding: 1.5rem; border-color: rgba(16, 185, 129, 0.25);">
@@ -195,6 +211,28 @@
     } catch (err) {
       console.error(err);
       alert('URLのコピーに失敗しました。お手数ですが、URLを手動でコピーしてください。');
+    }
+  }
+
+  async function sendContractEmail(id, title) {
+    if (!confirm(`【メール送信の確認】\n契約書「${title}」の案内メールを相手方に送信します。\n\n本当に送信しますか？`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/contracts/${id}/send-email`, {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert('メールを正常に送信しました！');
+      } else {
+        alert('送信失敗: ' + (result.error || '不明なエラー'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
     }
   }
 </script>

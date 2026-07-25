@@ -976,6 +976,76 @@ app.post('/api/contracts/delete-all', async (req, res) => {
   }
 });
 
+// 契約書個別の手動メール送信API
+app.post('/api/contracts/:id/send-email', async (req, res) => {
+  try {
+    const contract = await dbGet('SELECT * FROM contracts WHERE id = ?', [req.params.id]);
+    if (!contract) {
+      return res.status(404).json({ error: '契約書が見つかりません。' });
+    }
+
+    const signers = await dbAll('SELECT * FROM signers WHERE contract_id = ?', [contract.id]);
+    const recipient = signers.find(s => s.role === 'RECIPIENT');
+
+    if (!recipient || !recipient.email) {
+      return res.status(400).json({ error: '相手方のメールアドレスが登録されていません。' });
+    }
+
+    const host = req.get('host');
+    const protocol = req.protocol;
+    const recipientSignUrl = `${protocol}://${host}/sign/${recipient.access_token}`;
+
+    const subject = `【重要】契約書「${contract.title}」のご確認・同意のお願い`;
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <p style="font-size: 1rem; color: #1e293b;"><strong>${recipient.name} 様</strong></p>
+        
+        <p style="font-size: 0.95rem; color: #334155; line-height: 1.6;">
+          お世話になっております。株式会社Coedo Music Labo です。<br>
+          作成いたしました契約書をご案内いたします。
+        </p>
+
+        <div style="background-color: #f8fafc; border-left: 4px solid #6366f1; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="font-size: 0.95rem; color: #1e293b; margin: 0; font-weight: bold;">
+            📌 ご案内
+          </p>
+          <p style="font-size: 0.9rem; color: #475569; margin: 8px 0 0 0; line-height: 1.5;">
+            下記ボタンより契約書リンクを開き、内容をよくお読みいただいた上で、同意チェックを行って完了させてください。
+          </p>
+        </div>
+
+        <p style="text-align: center; margin: 30px 0;">
+          <a href="${recipientSignUrl}" style="display: inline-block; padding: 14px 28px; background-color: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1rem; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">
+            契約書の内容を確認して同意する
+          </a>
+        </p>
+
+        <p style="font-size: 0.8rem; color: #64748b; line-height: 1.4;">
+          ※ボタンがクリックできない場合は、以下のURLを直接ブラウザにコピー＆ペーストして開いてください：<br>
+          <a href="${recipientSignUrl}" style="color: #4f46e5;">${recipientSignUrl}</a>
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0 20px 0;">
+
+        <div style="font-size: 0.85rem; color: #475569; line-height: 1.6;">
+          <p style="margin: 0; font-weight: bold; color: #1e293b;">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</p>
+          <p style="margin: 4px 0; font-weight: bold; color: #1e293b;">株式会社Coedo Music Labo</p>
+          <p style="margin: 4px 0;">〒356-0004 埼玉県ふじみ野市上福岡3-16-10 朝日パリオ上福岡703</p>
+          <p style="margin: 4px 0;">代表取締役：宮下 晋</p>
+          <p style="margin: 4px 0;">Email：<a href="mailto:susumu.miyashita@coedo-music.jp" style="color: #4f46e5;">susumu.miyashita@coedo-music.jp</a></p>
+          <p style="margin: 0; font-weight: bold; color: #1e293b;">━━━━━━━━━━━━━━━━━━━━━━━━━━━━</p>
+        </div>
+      </div>
+    `;
+
+    sendMail({ to: recipient.email, subject: subject, html: htmlContent });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'メールの送信中にエラーが発生しました。' });
+  }
+});
+
 app.get('/api/debug-fonts', (req, res) => {
   const fontDir = '/usr/share/fonts';
   const results = [];

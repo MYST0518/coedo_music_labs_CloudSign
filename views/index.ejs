@@ -168,6 +168,10 @@
                     </a>
                   <% } %>
 
+                  <button onclick="sendContractEmail('<%= contract.id %>', '<%= contract.title %>')" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); color: #a5b4fc;" title="相手方にメールを送信">
+                    <i data-lucide="mail" style="width: 14px; height: 14px;"></i> メール送信
+                  </button>
+
                   <button onclick="deleteContract('<%= contract.id %>')" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
                     <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                   </button>
@@ -437,6 +441,28 @@
       } else {
         const result = await response.json();
         alert('一括削除失敗: ' + (result.error || '不明なエラー'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+    }
+  }
+
+  async function sendContractEmail(id, title) {
+    if (!confirm(`【メール送信の確認】\n契約書「${title}」の案内メールを相手方に送信します。\n\n本当に送信しますか？`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/contracts/${id}/send-email`, {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert('メールを正常に送信しました！');
+      } else {
+        alert('送信失敗: ' + (result.error || '不明なエラー'));
       }
     } catch (err) {
       console.error(err);
