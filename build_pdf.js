@@ -45,7 +45,8 @@ async function buildContractPdf(recipientName = '', recipientAddress = '') {
   const date = now.getDate();
   const formattedDate = `令和${reiwaYear}年${month}月${date}日`;
 
-  const embedText = `「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.N-」音楽原盤制作契約書
+  const embedText = `「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.N-」
+音楽原盤制作契約書
 
 本契約は、株式会社Coedo Music Labo（以下「甲」という）と、${recipientLabel}（以下「乙」という）との間において、「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ- 」（以下「本件原盤」という）の制作およびその利用に関し、以下の通り締結する。
 
@@ -178,7 +179,7 @@ ${formattedDate}
       continue;
     }
 
-    const isTitle = line.includes('「暴音族オムニバスアルバム') && line.includes('契約書');
+    const isTitle = line.includes('「暴音族オムニバスアルバム') || line.includes('音楽原盤制作契約書');
     const isHeader = line.startsWith('第') && (line.includes('条') || line.includes('項'));
     const isSeparator = line.startsWith('----');
 
