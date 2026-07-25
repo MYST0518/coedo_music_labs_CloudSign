@@ -67,24 +67,59 @@
       <h4 style="font-size: 0.95rem; margin-top: 1rem; color: #fff; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
         基本宛先情報 (必須)
       </h4>
-      <table class="mapping-table" style="margin-top: 0.5rem; margin-bottom: 2rem;">
+      
+      <!-- 甲（自分）の設定方法選択 -->
+      <div style="margin-top: 1.25rem; margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+        <label style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 500;">署名者1 (甲/自分) の設定方法</label>
+        <div style="display: inline-flex; gap: 1.5rem;">
+          <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff;">
+            <input type="radio" name="senderMode" value="fixed" checked onchange="toggleSenderMode()"> 一括で同じ固定値を使う
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff;">
+            <input type="radio" name="senderMode" value="csv" onchange="toggleSenderMode()"> CSVの列から取得する
+          </label>
+        </div>
+
+        <!-- 固定値入力欄 -->
+        <div id="senderFixedInputs" style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+          <div style="flex: 1;">
+            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">甲の氏名 (固定値)</label>
+            <input type="text" id="senderFixedName" value="株式会社Coedo Music Labo 代表取締役 宮下 晋" placeholder="氏名" style="width:100%; padding: 0.5rem; border-radius: 6px; background: rgba(0,0,0,0.3); border:1px solid var(--border-color); color:#fff; font-size:0.85rem;">
+          </div>
+          <div style="flex: 1;">
+            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">甲のメールアドレス (固定値)</label>
+            <input type="email" id="senderFixedEmail" placeholder="sender@domain.com" style="width:100%; padding: 0.5rem; border-radius: 6px; background: rgba(0,0,0,0.3); border:1px solid var(--border-color); color:#fff; font-size:0.85rem;">
+          </div>
+        </div>
+
+        <!-- CSV列マッピング欄 (デフォルト非表示) -->
+        <div id="senderCsvInputs" style="display: none; margin-top: 0.5rem;">
+          <table class="mapping-table" style="margin-top: 0;">
+            <tbody>
+              <tr>
+                <td style="width: 200px;"><strong>甲の氏名列</strong></td>
+                <td><select class="csv-col-select" id="senderNameCol"></select></td>
+              </tr>
+              <tr>
+                <td><strong>甲のメール列</strong></td>
+                <td><select class="csv-col-select" id="senderEmailCol"></select></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 相手（乙）のCSVマッピング (常に必須) -->
+      <table class="mapping-table" style="margin-top: 1rem; margin-bottom: 2rem;">
         <thead>
           <tr>
-            <th>契約書側の項目</th>
-            <th>CSV側の列（ドロップダウンから選択）</th>
+            <th>乙（相手方）の項目</th>
+            <th>CSV側の列名（ドロップダウンから選択）</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>署名者1 (甲/自分) 氏名</strong></td>
-            <td><select class="csv-col-select" id="senderNameCol" required></select></td>
-          </tr>
-          <tr>
-            <td><strong>署名者1 (甲/自分) メール</strong></td>
-            <td><select class="csv-col-select" id="senderEmailCol" required></select></td>
-          </tr>
-          <tr>
-            <td><strong>署名者2 (乙/相手) 氏名</strong></td>
+            <td style="width: 200px;"><strong>署名者2 (乙/相手) 氏名</strong></td>
             <td><select class="csv-col-select" id="recipientNameCol" required></select></td>
           </tr>
           <tr>
@@ -168,6 +203,24 @@
   let csvHeaders = [];
   let selectedCSVFile = null;
 
+  function toggleSenderMode() {
+    const senderMode = document.querySelector('input[name="senderMode"]:checked').value;
+    const fixedDiv = document.getElementById('senderFixedInputs');
+    const csvDiv = document.getElementById('senderCsvInputs');
+
+    if (senderMode === 'fixed') {
+      fixedDiv.style.display = 'flex';
+      csvDiv.style.display = 'none';
+      document.getElementById('senderNameCol').removeAttribute('required');
+      document.getElementById('senderEmailCol').removeAttribute('required');
+    } else {
+      fixedDiv.style.display = 'none';
+      csvDiv.style.display = 'block';
+      document.getElementById('senderNameCol').setAttribute('required', 'required');
+      document.getElementById('senderEmailCol').setAttribute('required', 'required');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const csvDropZone = document.getElementById('csvDropZone');
     const csvFileInput = document.getElementById('csvFileInput');
@@ -221,7 +274,6 @@
     }
   });
 
-  // CSVヘッダーをパースしてUIを展開
   function parseCSVHeaders(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -232,20 +284,15 @@
         return;
       }
 
-      // 1行目のパース
       csvHeaders = parseCSVLine(lines[0]);
-      
-      // 各セレクトボックスの中身を構築
       buildSelectOptions(csvHeaders);
       
-      // マッピング入力エリアを表示
       document.getElementById('mappingCard').style.display = 'block';
       document.getElementById('mappingCard').scrollIntoView({ behavior: 'smooth' });
     };
     reader.readAsText(file, 'utf-8');
   }
 
-  // 二重引用符対応のCSVヘッダースプリッター
   function parseCSVLine(line) {
     const result = [];
     let cur = "";
@@ -265,11 +312,9 @@
     return result.filter(h => h !== '');
   }
 
-  // セレクトボックスにオプションを挿入
   function buildSelectOptions(headers) {
     const selectElements = document.querySelectorAll('.csv-col-select');
     selectElements.forEach(select => {
-      // 既存のオプションをクリア (prefill-map-selectは「印字しない」を先頭に残す)
       const hasPrefill = select.classList.contains('prefill-map-select');
       select.innerHTML = hasPrefill ? '<option value="">-- 印字しない --</option>' : '';
 
@@ -280,15 +325,14 @@
         select.appendChild(option);
       });
 
-      // 自動インテリジェントマッピングの試み (名前でのマッチング)
       const placeholder = select.dataset.placeholder;
       const id = select.id;
       
       let matchedHeader = '';
-      if (id === 'senderNameCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('名') || h.includes('氏'))) || headers.find(h => h.includes('差出') || h.includes('自分') || h.includes('送信'));
-      else if (id === 'senderEmailCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('メール') || h.includes('アドレス'))) || headers.find(h => h.includes('差出') || h.includes('自分') || h.includes('送信')) && headers.find(h => h.includes('メール'));
-      else if (id === 'recipientNameCol') matchedHeader = headers.find(h => h.includes('乙') && (h.includes('名') || h.includes('氏'))) || headers.find(h => h.includes('相手') || h.includes('受信') || h.includes('宛先'));
-      else if (id === 'recipientEmailCol') matchedHeader = headers.find(h => h.includes('乙') && (h.includes('メール') || h.includes('アドレス'))) || headers.find(h => h.includes('相手') || h.includes('受信') || h.includes('宛先')) && headers.find(h => h.includes('メール'));
+      if (id === 'senderNameCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('名') || h.includes('氏')));
+      else if (id === 'senderEmailCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('メール') || h.includes('アドレス')));
+      else if (id === 'recipientNameCol') matchedHeader = headers.find(h => h.includes('氏名') || h.includes('氏') || h.includes('名')) || headers.find(h => h.includes('相手') || h.includes('乙'));
+      else if (id === 'recipientEmailCol') matchedHeader = headers.find(h => h === 'メールアドレス' || h.includes('メール') || h.includes('アドレス'));
       else if (placeholder) {
         matchedHeader = headers.find(h => h === placeholder) || headers.find(h => h.includes(placeholder));
       }
@@ -299,18 +343,36 @@
     });
   }
 
-  // 一括インポート・送信処理
   async function executeBulkImport() {
     const executeBtn = document.getElementById('executeBtn');
+    const senderMode = document.querySelector('input[name="senderMode"]:checked').value;
     
-    // バリデーション
-    const senderNameCol = document.getElementById('senderNameCol').value;
-    const senderEmailCol = document.getElementById('senderEmailCol').value;
+    let senderFixedName = '';
+    let senderFixedEmail = '';
+    let senderNameCol = '';
+    let senderEmailCol = '';
+
+    if (senderMode === 'fixed') {
+      senderFixedName = document.getElementById('senderFixedName').value.trim();
+      senderFixedEmail = document.getElementById('senderFixedEmail').value.trim();
+      if (!senderFixedName || !senderFixedEmail) {
+        alert('甲（自分）の固定氏名とメールアドレスを入力してください。');
+        return;
+      }
+    } else {
+      senderNameCol = document.getElementById('senderNameCol').value;
+      senderEmailCol = document.getElementById('senderEmailCol').value;
+      if (!senderNameCol || !senderEmailCol) {
+        alert('甲の氏名・メール列のマッピングを設定してください。');
+        return;
+      }
+    }
+
     const recipientNameCol = document.getElementById('recipientNameCol').value;
     const recipientEmailCol = document.getElementById('recipientEmailCol').value;
 
-    if (!senderNameCol || !senderEmailCol || !recipientNameCol || !recipientEmailCol) {
-      alert('基本宛先情報のマッピングをすべて選択してください。');
+    if (!recipientNameCol || !recipientEmailCol) {
+      alert('乙（相手方）の宛先情報のマッピングをすべて選択してください。');
       return;
     }
 
@@ -319,7 +381,6 @@
       return;
     }
 
-    // プレフィルマッピングの取得
     const prefillMap = {};
     const prefillSelects = document.querySelectorAll('.prefill-map-select');
     prefillSelects.forEach(select => {
@@ -332,6 +393,9 @@
 
     const mapping = {
       prefillMap,
+      senderMode,
+      senderFixedName,
+      senderFixedEmail,
       senderNameCol,
       senderEmailCol,
       recipientNameCol,

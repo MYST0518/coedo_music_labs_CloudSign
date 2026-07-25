@@ -768,8 +768,17 @@ app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (re
       });
 
       // 差出人と受取人の情報を取得
-      const senderName = rowData[mapping.senderNameCol];
-      const senderEmail = rowData[mapping.senderEmailCol];
+      let senderName = '';
+      let senderEmail = '';
+
+      if (mapping.senderMode === 'fixed') {
+        senderName = mapping.senderFixedName;
+        senderEmail = mapping.senderFixedEmail;
+      } else {
+        senderName = rowData[mapping.senderNameCol];
+        senderEmail = rowData[mapping.senderEmailCol];
+      }
+
       const recipientName = rowData[mapping.recipientNameCol];
       const recipientEmail = rowData[mapping.recipientEmailCol];
 
