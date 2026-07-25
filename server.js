@@ -83,6 +83,40 @@ async function sendMail({ to, subject, html, attachments = [] }) {
   }
 }
 
+// 簡易CSVパースヘルパー
+function parseCSV(text) {
+  const lines = [];
+  let row = [""];
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i+1];
+    if (c === '"') {
+      if (inQuotes && next === '"') {
+        row[row.length - 1] += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (c === ',' && !inQuotes) {
+      row.push("");
+    } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      if (c === '\r' && next === '\n') {
+        i++;
+      }
+      lines.push(row);
+      row = [""];
+    } else {
+      row[row.length - 1] += c;
+    }
+  }
+  if (row.length > 1 || row[0] !== "") {
+    lines.push(row);
+  }
+  return lines;
+}
+
 // Expressの設定
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -93,10 +127,13 @@ app.use('/uploads', express.static(path.join(dataDir, 'uploads')));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Multerの設定
+// Multerの設定 (CSVアップロード対応)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dest = path.join(dataDir, 'uploads');
+    let dest = path.join(dataDir, 'uploads');
+    if (file.fieldname === 'templatePdf') {
+      dest = path.join(dataDir, 'uploads', 'templates');
+    }
     if (!fs.existsSync(dest)) {
       fs.mkdirSync(dest, { recursive: true });
     }
@@ -104,16 +141,19 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'contract-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 const upload = multer({ 
   storage: storage,
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
+    if (file.fieldname === 'pdf' || file.fieldname === 'templatePdf') {
+      if (file.mimetype === 'application/pdf') cb(null, true);
+      else cb(new Error('PDFファイルのみアップロード可能です。'), false);
+    } else if (file.fieldname === 'csvFile') {
+      cb(null, true); // CSVファイルのバリデーションは拡張子等で行う
     } else {
-      cb(new Error('PDFファイルのみアップロード可能です。'), false);
+      cb(null, true);
     }
   }
 });
@@ -122,7 +162,7 @@ const upload = multer({
 // 画面ルート
 // -------------------------------------------------------------
 
-// 1. ダッシュボード (契約一覧 - 二者間対応のgroup_concat)
+// 1. ダッシュボード (契約一覧)
 app.get('/', async (req, res) => {
   try {
     const contracts = await dbAll(`
@@ -158,7 +198,7 @@ app.get('/contracts/edit/:id', async (req, res) => {
   }
 });
 
-// 3. 契約書詳細画面 (甲乙2名のステータスとURLをハンドリング)
+// 3. 契約書詳細画面
 app.get('/contracts/detail/:id', async (req, res) => {
   try {
     const contract = await dbGet('SELECT * FROM contracts WHERE id = ?', [req.params.id]);
@@ -191,7 +231,7 @@ app.get('/contracts/detail/:id', async (req, res) => {
   }
 });
 
-// 4. 署名画面 (各署名者専用ページ)
+// 4. 署名画面
 app.get('/sign/:token', async (req, res) => {
   try {
     const token = req.params.token;
@@ -200,12 +240,54 @@ app.get('/sign/:token', async (req, res) => {
       return res.status(404).send('無効な署名URLです。または期限が切れています。');
     }
     const contract = await dbGet('SELECT * FROM contracts WHERE id = ?', [signer.contract_id]);
-    
-    // 全員の署名者情報を取得 (相手の署名状態を確認するため)
     const signers = await dbAll('SELECT * FROM signers WHERE contract_id = ?', [contract.id]);
     const fields = await dbAll('SELECT * FROM fields WHERE contract_id = ?', [contract.id]);
 
     res.render('sign', { contract, signer, signers, fields });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('サーバーエラーが発生しました。');
+  }
+});
+
+// 5. 【新規】テンプレート管理一覧
+app.get('/templates', async (req, res) => {
+  try {
+    const templates = await dbAll('SELECT * FROM templates ORDER BY created_at DESC');
+    res.render('templates', { templates });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('サーバーエラーが発生しました。');
+  }
+});
+
+// 6. 【新規】テンプレート編集・フィールド配置画面
+app.get('/templates/edit/:id', async (req, res) => {
+  try {
+    const template = await dbGet('SELECT * FROM templates WHERE id = ?', [req.params.id]);
+    if (!template) {
+      return res.status(404).send('テンプレートが見つかりません。');
+    }
+    const fields = await dbAll('SELECT * FROM template_fields WHERE template_id = ?', [template.id]);
+    res.render('template_edit', { template, fields });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('サーバーエラーが発生しました。');
+  }
+});
+
+// 7. 【新規】CSVインポート・流し込み設定画面
+app.get('/templates/:id/import', async (req, res) => {
+  try {
+    const template = await dbGet('SELECT * FROM templates WHERE id = ?', [req.params.id]);
+    if (!template) {
+      return res.status(404).send('テンプレートが見つかりません。');
+    }
+    const prefillFields = await dbAll(
+      "SELECT placeholder_name FROM template_fields WHERE template_id = ? AND type = 'prefill' GROUP BY placeholder_name",
+      [template.id]
+    );
+    res.render('csv_import', { template, prefillFields });
   } catch (err) {
     console.error(err);
     res.status(500).send('サーバーエラーが発生しました。');
@@ -240,7 +322,7 @@ app.post('/api/contracts/upload', upload.single('pdf'), async (req, res) => {
   }
 });
 
-// 2. 契約送信 (甲・乙2名の署名者とそれぞれのフィールドを保存)
+// 2. 契約送信 (甲・乙2名の署名枠を保存)
 app.post('/api/contracts/:id/send', async (req, res) => {
   const contractId = req.params.id;
   const { senderName, senderEmail, recipientName, recipientEmail, fields } = req.body;
@@ -267,7 +349,6 @@ app.post('/api/contracts/:id/send', async (req, res) => {
 
     await dbRun('BEGIN TRANSACTION');
 
-    // 1. 署名者2名分を保存 (SENDER と RECIPIENT)
     await dbRun(
       'INSERT INTO signers (id, contract_id, name, email, role, access_token) VALUES (?, ?, ?, ?, ?, ?)',
       [senderId, contractId, senderName, senderEmail, 'SENDER', senderToken]
@@ -277,7 +358,6 @@ app.post('/api/contracts/:id/send', async (req, res) => {
       [recipientId, contractId, recipientName, recipientEmail, 'RECIPIENT', recipientToken]
     );
 
-    // 2. 配置フィールドを保存 (role に応じて signer_id を切り分ける)
     for (const field of fields) {
       const fieldId = uuidv4();
       const targetSignerId = (field.role === 'SENDER') ? senderId : recipientId;
@@ -288,7 +368,6 @@ app.post('/api/contracts/:id/send', async (req, res) => {
       );
     }
 
-    // 3. 契約書ステータスを更新
     await dbRun(
       'UPDATE contracts SET status = ?, updated_at = ? WHERE id = ?',
       ['SENT', now, contractId]
@@ -301,8 +380,7 @@ app.post('/api/contracts/:id/send', async (req, res) => {
     const senderSignUrl = `${protocol}://${host}/sign/${senderToken}`;
     const recipientSignUrl = `${protocol}://${host}/sign/${recipientToken}`;
 
-    // 自動メール送信 (メール自動送信が有効な場合)
-    // 1. 送信者 (自分) への通知
+    // 自動メール送信
     const senderMailSubject = `【署名依頼】契約書「${contract.title}」の署名手続きを開始してください`;
     const senderMailHtml = `
       <p><strong>${senderName} 様</strong></p>
@@ -313,14 +391,13 @@ app.post('/api/contracts/:id/send', async (req, res) => {
           自分の署名画面を開く
         </a>
       </p>
-      <p>また、相手方（${recipientName} 様）の署名用リンクは以下になります。手動で共有される場合はこちらをお送りください：</p>
+      <p>また、相手方（${recipientName} 様）の署名用リンクは以下になります：</p>
       <p><a href="${recipientSignUrl}">${recipientSignUrl}</a></p>
       <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
       <p style="font-size: 0.85rem; color: #6b7280;">※本メールはシステムより自動送信されています。</p>
     `;
     sendMail({ to: senderEmail, subject: senderMailSubject, html: senderMailHtml });
 
-    // 2. 受信者 (相手) への通知
     const recipientMailSubject = `【署名依頼】契約書「${contract.title}」への署名をお願いします`;
     const recipientMailHtml = `
       <p><strong>${recipientName} 様</strong></p>
@@ -366,12 +443,10 @@ app.post('/api/sign/:token/submit', async (req, res) => {
 
     await dbRun('BEGIN TRANSACTION');
 
-    // 1. 各フィールドに入力値を保存
     for (const [fieldId, val] of Object.entries(fieldValues)) {
       await dbRun('UPDATE fields SET value = ? WHERE id = ? AND signer_id = ?', [val, fieldId, signer.id]);
     }
 
-    // 2. 署名者の署名情報を更新
     await dbRun(
       'UPDATE signers SET signed_at = ?, ip_address = ?, user_agent = ? WHERE id = ?',
       [now, ipAddress, userAgent, signer.id]
@@ -379,22 +454,16 @@ app.post('/api/sign/:token/submit', async (req, res) => {
 
     await dbRun('COMMIT');
 
-    // 3. 全員の署名が完了したか判定する
     const pendingSigners = await dbAll('SELECT * FROM signers WHERE contract_id = ? AND signed_at IS NULL', [contract.id]);
     
     if (pendingSigners.length === 0) {
-      // -------------------------------------------------------------
-      // 全員署名完了時の処理 (PDFの合成 & 証明書ページの結合)
-      // -------------------------------------------------------------
       const originalPdfPath = path.join(dataDir, contract.file_path);
       const pdfBytes = fs.readFileSync(originalPdfPath);
       const pdfDoc = await PDFDocument.load(pdfBytes);
       const pages = pdfDoc.getPages();
 
-      // この契約書の全フィールドをDBから取得
       const fields = await dbAll('SELECT * FROM fields WHERE contract_id = ?', [contract.id]);
 
-      // PDF上に全フィールドの値を描画
       for (const field of fields) {
         if (!field.value) continue;
 
@@ -418,11 +487,9 @@ app.post('/api/sign/:token/submit', async (req, res) => {
         });
       }
 
-      // 合意証明書ページの追加
       const proofPage = pdfDoc.addPage([595.276, 841.89]);
       const { width: pWidth, height: pHeight } = proofPage.getSize();
       
-      // 日本語フォント (font-ipa) のロード
       const fontPath = '/usr/share/fonts/font-ipa/ipag.ttf';
       let customFont;
       if (fs.existsSync(fontPath)) {
@@ -434,7 +501,6 @@ app.post('/api/sign/:token/submit', async (req, res) => {
 
       const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-      // 証明書のヘッダー
       proofPage.drawText('AGREEMENT CERTIFICATE', {
         x: 50,
         y: pHeight - 80,
@@ -455,15 +521,13 @@ app.post('/api/sign/:token/submit', async (req, res) => {
         thickness: 1,
       });
 
-      // 契約基本情報
       proofPage.drawText('Document Name:', { x: 50, y: pHeight - 150, size: 10, font: helveticaBold });
       proofPage.drawText(contract.title, { x: 180, y: pHeight - 150, size: 10, font: customFont });
       
       proofPage.drawText('Document ID:', { x: 50, y: pHeight - 170, size: 10, font: helveticaBold });
       proofPage.drawText(contract.id, { x: 180, y: pHeight - 170, size: 10, font: customFont });
 
-      // 全署名者の署名ログを並べて描画
-      const allSigners = await dbAll('SELECT * FROM signers WHERE contract_id = ? ORDER BY role DESC', [contract.id]); // SENDER -> RECIPIENT順
+      const allSigners = await dbAll('SELECT * FROM signers WHERE contract_id = ? ORDER BY role DESC', [contract.id]);
       
       let currentY = pHeight - 210;
 
@@ -487,7 +551,6 @@ app.post('/api/sign/:token/submit', async (req, res) => {
         proofPage.drawText('Environment:', { x: 50, y: currentY - 65, size: 9, font: helveticaBold });
         proofPage.drawText(uaStr, { x: 180, y: currentY - 65, size: 9, font: customFont });
 
-        // 枠線
         proofPage.drawLine({
           start: { x: 50, y: currentY - 80 },
           end: { x: pWidth - 50, y: currentY - 80 },
@@ -498,7 +561,6 @@ app.post('/api/sign/:token/submit', async (req, res) => {
         currentY -= 100;
       }
 
-      // フッター
       proofPage.drawText('Generated by Mini-Contract-System (Self-Hosted/API-Free)', {
         x: 50,
         y: 40,
@@ -513,13 +575,11 @@ app.post('/api/sign/:token/submit', async (req, res) => {
       const signedFullPath = path.join(dataDir, 'uploads', 'signed', signedFileName);
       fs.writeFileSync(signedFullPath, signedPdfBytes);
 
-      // 契約書ステータスを SIGNED に更新
       await dbRun(
         'UPDATE contracts SET status = ?, signed_file_path = ?, updated_at = ? WHERE id = ?',
         ['SIGNED', signedFilePath, now, contract.id]
       );
 
-      // 締結完了メール送信 (PDFを添付)
       const pdfAttachment = {
         filename: `${contract.title}_signed.pdf`,
         path: signedFullPath,
@@ -534,7 +594,6 @@ app.post('/api/sign/:token/submit', async (req, res) => {
         <p style="font-size: 0.85rem; color: #6b7280;">※本メールはシステムより自動送信されています。</p>
       `;
       
-      // 送信者と受信者の双方に送信
       const sender = allSigners.find(s => s.role === 'SENDER');
       const recipient = allSigners.find(s => s.role === 'RECIPIENT');
 
@@ -546,6 +605,307 @@ app.post('/api/sign/:token/submit', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '署名の処理に失敗しました。' });
+  }
+});
+
+// -------------------------------------------------------------
+// 【新規】テンプレート関連 APIルート
+// -------------------------------------------------------------
+
+// 1. テンプレートPDFアップロード (ひな形登録)
+app.post('/api/templates/upload', upload.single('templatePdf'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'PDFファイルを選択してください。' });
+    }
+
+    const id = uuidv4();
+    const title = req.body.title || req.file.originalname.replace(path.extname(req.file.originalname), '');
+    const filePath = `/uploads/templates/${req.file.filename}`;
+    const now = new Date().toISOString();
+
+    await dbRun(
+      'INSERT INTO templates (id, title, file_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      [id, title, filePath, now, now]
+    );
+
+    res.json({ id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'テンプレートのアップロードに失敗しました。' });
+  }
+});
+
+// 2. テンプレート定義（差し込み座標＆署名枠）の保存
+app.post('/api/templates/:id/save', async (req, res) => {
+  const templateId = req.params.id;
+  const { fields } = req.body; // Array of fields: { type, signerRole, placeholderName, pageNumber, xRatio, yRatio, widthRatio, heightRatio }
+
+  if (!fields || !Array.isArray(fields)) {
+    return res.status(400).json({ error: '配置フィールド情報が不正です。' });
+  }
+
+  try {
+    const template = await dbGet('SELECT * FROM templates WHERE id = ?', [templateId]);
+    if (!template) {
+      return res.status(404).json({ error: 'テンプレートが見つかりません。' });
+    }
+
+    const now = new Date().toISOString();
+
+    await dbRun('BEGIN TRANSACTION');
+    
+    // 既存のフィールド定義を削除
+    await dbRun('DELETE FROM template_fields WHERE template_id = ?', [templateId]);
+
+    // 新しい定義をインサート
+    for (const field of fields) {
+      const fieldId = uuidv4();
+      await dbRun(
+        `INSERT INTO template_fields (id, template_id, type, signer_role, placeholder_name, page_number, x_ratio, y_ratio, width_ratio, height_ratio)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          fieldId,
+          templateId,
+          field.type,
+          field.signerRole || 'SYSTEM',
+          field.placeholderName || null,
+          field.pageNumber,
+          field.xRatio,
+          field.yRatio,
+          field.widthRatio,
+          field.heightRatio
+        ]
+      );
+    }
+
+    await dbRun('UPDATE templates SET updated_at = ? WHERE id = ?', [now, templateId]);
+    await dbRun('COMMIT');
+
+    res.json({ success: true });
+  } catch (err) {
+    await dbRun('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'テンプレート定義の保存に失敗しました。' });
+  }
+});
+
+// 3. テンプレート削除 API
+app.post('/api/templates/:id/delete', async (req, res) => {
+  try {
+    const template = await dbGet('SELECT * FROM templates WHERE id = ?', [req.params.id]);
+    if (!template) {
+      return res.status(404).json({ error: 'テンプレートが見つかりません。' });
+    }
+
+    const fullPath = path.join(dataDir, template.file_path);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+
+    await dbRun('DELETE FROM templates WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'テンプレートの削除に失敗しました。' });
+  }
+});
+
+// 4. 【核心】CSV流し込み ＆ 一括送信API
+app.post('/api/templates/:id/import-submit', upload.single('csvFile'), async (req, res) => {
+  const templateId = req.params.id;
+  const mapping = JSON.parse(req.body.mapping); 
+  // mapping structure: { 
+  //   prefillMap: { templatePlaceholderName: csvColumnHeaderName }, 
+  //   senderNameCol, senderEmailCol, recipientNameCol, recipientEmailCol 
+  // }
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'CSVファイルをアップロードしてください。' });
+    }
+
+    const template = await dbGet('SELECT * FROM templates WHERE id = ?', [templateId]);
+    if (!template) {
+      return res.status(404).json({ error: 'テンプレートが見つかりません。' });
+    }
+
+    // テンプレート構成情報を取得
+    const templateFields = await dbAll('SELECT * FROM template_fields WHERE template_id = ?', [templateId]);
+
+    // CSVテキストの読み込みとパース
+    const csvFullPath = path.join(dataDir, 'uploads', req.file.filename);
+    const csvContent = fs.readFileSync(csvFullPath, 'utf-8');
+    fs.unlinkSync(csvFullPath); // 解析が終わったらCSVファイルは削除
+
+    const rows = parseCSV(csvContent);
+    if (rows.length < 2) {
+      return res.status(400).json({ error: 'CSVに有効なデータが含まれていません。' });
+    }
+
+    const headers = rows[0].map(h => h.trim());
+    const dataRows = rows.slice(1);
+
+    // 日本語フォント (font-ipa) のロード
+    const fontPath = '/usr/share/fonts/font-ipa/ipag.ttf';
+    let customFont;
+    const dummyDoc = await PDFDocument.create();
+    if (fs.existsSync(fontPath)) {
+      const fontBytes = fs.readFileSync(fontPath);
+      customFont = fontBytes; // 各ループ内で埋め込むため、ここではバイトデータを保持
+    }
+
+    const createdContracts = [];
+
+    // 行ごとにPDFを合成 & 契約書を発行
+    for (const row of dataRows) {
+      if (row.length === 0 || row.join('').trim() === '') continue;
+
+      // 行データをオブジェクト化 { [HeaderName]: Value }
+      const rowData = {};
+      headers.forEach((header, idx) => {
+        rowData[header] = row[idx] ? row[idx].trim() : '';
+      });
+
+      // 差出人と受取人の情報を取得
+      const senderName = rowData[mapping.senderNameCol];
+      const senderEmail = rowData[mapping.senderEmailCol];
+      const recipientName = rowData[mapping.recipientNameCol];
+      const recipientEmail = rowData[mapping.recipientEmailCol];
+
+      if (!senderName || !senderEmail || !recipientName || !recipientEmail) {
+        console.warn('Skipping CSV row due to missing sender/recipient info:', rowData);
+        continue;
+      }
+
+      // --- ① PDFに差し込み文字（prefill）を印字合成する ---
+      const originalPdfPath = path.join(dataDir, template.file_path);
+      const pdfBytes = fs.readFileSync(originalPdfPath);
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const pages = pdfDoc.getPages();
+
+      // 日本語フォントの組み込み
+      let fontObject;
+      if (customFont) {
+        fontObject = await pdfDoc.embedFont(customFont);
+      } else {
+        fontObject = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      }
+
+      const prefillFields = templateFields.filter(f => f.type === 'prefill');
+      for (const pf of prefillFields) {
+        const csvColName = mapping.prefillMap[pf.placeholder_name];
+        const val = rowData[csvColName] || '';
+        if (!val) continue;
+
+        const page = pages[pf.page_number - 1];
+        const { width, height } = page.getSize();
+
+        // 座標算出 (プレフィル枠の左下を原点に描画)
+        const x = pf.x_ratio * width;
+        const y = height - (pf.y_ratio * height) - (pf.height_ratio * height);
+
+        // 文字サイズは縦幅の70%〜90%程度に合わせる
+        const fontSize = Math.max(9, Math.floor(pf.height_ratio * height * 0.75));
+
+        page.drawText(val, {
+          x: x + 4, // わずかな左パディング
+          y: y + (pf.height_ratio * height - fontSize) / 2, // 縦中央寄せ
+          size: fontSize,
+          font: fontObject,
+        });
+      }
+
+      // 描画済みPDFを保存
+      const uniqueSuffix = uuidv4();
+      const newPdfFileName = `contract-prefilled-${uniqueSuffix}.pdf`;
+      const newPdfFilePath = `/uploads/${newPdfFileName}`;
+      const newPdfFullPath = path.join(dataDir, 'uploads', newPdfFileName);
+
+      const prefilledPdfBytes = await pdfDoc.save();
+      fs.writeFileSync(newPdfFullPath, prefilledPdfBytes);
+
+      // --- ② データベースに契約と署名者を保存 ---
+      const contractId = uuidv4();
+      const senderId = uuidv4();
+      const senderToken = uuidv4();
+      const recipientId = uuidv4();
+      const recipientToken = uuidv4();
+      const now = new Date().toISOString();
+
+      await dbRun('BEGIN TRANSACTION');
+
+      // 契約親
+      await dbRun(
+        'INSERT INTO contracts (id, title, status, file_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [contractId, `${template.title}_${recipientName}`, 'SENT', newPdfFilePath, now, now]
+      );
+
+      // 署名者2名
+      await dbRun(
+        'INSERT INTO signers (id, contract_id, name, email, role, access_token) VALUES (?, ?, ?, ?, ?, ?)',
+        [senderId, contractId, senderName, senderEmail, 'SENDER', senderToken]
+      );
+      await dbRun(
+        'INSERT INTO signers (id, contract_id, name, email, role, access_token) VALUES (?, ?, ?, ?, ?, ?)',
+        [recipientId, contractId, recipientName, recipientEmail, 'RECIPIENT', recipientToken]
+      );
+
+      // 署名枠・テキスト枠などの配置フィールド（prefill以外）の保存
+      const interactiveFields = templateFields.filter(f => f.type !== 'prefill');
+      for (const field of interactiveFields) {
+        const fieldId = uuidv4();
+        const targetSignerId = (field.signer_role === 'SENDER') ? senderId : recipientId;
+
+        await dbRun(
+          'INSERT INTO fields (id, contract_id, signer_id, type, page_number, x_ratio, y_ratio, width_ratio, height_ratio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [fieldId, contractId, targetSignerId, field.type, field.page_number, field.x_ratio, field.y_ratio, field.width_ratio, field.height_ratio]
+        );
+      }
+
+      await dbRun('COMMIT');
+
+      // --- ③ 署名依頼メールの送信 (非同期) ---
+      const host = req.get('host');
+      const protocol = req.protocol;
+      const senderSignUrl = `${protocol}://${host}/sign/${senderToken}`;
+      const recipientSignUrl = `${protocol}://${host}/sign/${recipientToken}`;
+
+      const senderMailSubject = `【署名依頼】契約書「${template.title}_${recipientName}」の署名手続きを開始してください`;
+      const senderMailHtml = `
+        <p><strong>${senderName} 様</strong></p>
+        <p>スプレッドシート流し込みにより、契約書「${template.title}_${recipientName}」の自動発行が完了しました。</p>
+        <p>まずは以下のリンクより、ご自身の署名を行ってください。</p>
+        <p style="margin: 20px 0;">
+          <a href="${senderSignUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-family: sans-serif;">
+            自分の署名画面を開く
+          </a>
+        </p>
+        <p>また、相手方（${recipientName} 様）の署名用リンクは以下になります：</p>
+        <p><a href="${recipientSignUrl}">${recipientSignUrl}</a></p>
+      `;
+      sendMail({ to: senderEmail, subject: senderMailSubject, html: senderMailHtml });
+
+      const recipientMailSubject = `【署名依頼】契約書「${template.title}_${recipientName}」への署名をお願いします`;
+      const recipientMailHtml = `
+        <p><strong>${recipientName} 様</strong></p>
+        <p>${senderName} 様より、契約書「${template.title}_${recipientName}」の署名依頼が届いています。</p>
+        <p>以下のリンクより内容をご確認の上、署名手続きを行ってください。</p>
+        <p style="margin: 20px 0;">
+          <a href="${recipientSignUrl}" style="display: inline-block; padding: 12px 24px; background-color: #6366f1; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: bold; font-family: sans-serif;">
+            契約書を確認して署名する
+          </a>
+        </p>
+      `;
+      sendMail({ to: recipientEmail, subject: recipientMailSubject, html: recipientMailHtml });
+
+      createdContracts.push({ contractId, recipientName });
+    }
+
+    res.json({ success: true, count: createdContracts.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '一括送信処理中にエラーが発生しました。' });
   }
 });
 

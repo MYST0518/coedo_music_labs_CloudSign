@@ -1,0 +1,491 @@
+<%- include('partials/header', { title: 'テンプレート配置編集' }) %>
+
+<style>
+  /* 役割別のフィールド色分け */
+  .placed-field.role-sender {
+    border-color: var(--color-primary) !important;
+    background: rgba(99, 102, 241, 0.25) !important;
+  }
+  .placed-field.role-recipient {
+    border-color: var(--color-warning) !important;
+    background: rgba(245, 158, 11, 0.25) !important;
+  }
+  .placed-field.role-system {
+    border-color: #a855f7 !important;
+    background: rgba(168, 85, 247, 0.25) !important;
+  }
+  
+  /* 役割切り替えトグル */
+  .role-toggle {
+    position: absolute;
+    bottom: -22px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    z-index: 10;
+  }
+  .role-toggle button {
+    font-size: 8px;
+    font-family: inherit;
+    font-weight: 600;
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: rgba(11, 15, 25, 0.95);
+    color: var(--text-secondary);
+    cursor: pointer;
+    line-height: 1;
+    transition: var(--transition-smooth);
+  }
+  .role-toggle button.active.sender-btn {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+  }
+  .role-toggle button.active.recipient-btn {
+    background: var(--color-warning);
+    color: #0b0f19;
+    border-color: var(--color-warning);
+  }
+  .role-toggle button.active.system-btn {
+    background: #a855f7;
+    color: #fff;
+    border-color: #a855f7;
+  }
+
+  /* 差し込み文字用テキストボックス */
+  .placeholder-input-container {
+    position: absolute;
+    top: -24px;
+    left: 0;
+    width: 100%;
+    z-index: 10;
+  }
+  .placeholder-input-container input {
+    width: 100%;
+    font-size: 9px;
+    padding: 2px 4px;
+    background: rgba(11, 15, 25, 0.95);
+    border: 1px solid #a855f7;
+    border-radius: 4px;
+    color: #fff;
+    text-align: center;
+  }
+</style>
+
+<div style="margin-bottom: 1.5rem;">
+  <a href="/templates" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; margin-bottom: 1rem;">
+    <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> テンプレート一覧に戻る
+  </a>
+  <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+      <h1>テンプレートの配置設計</h1>
+      <p style="margin-bottom: 0;">スプレッドシートから流し込む「差し込み文字（住所・会社名など）」の位置と、お互いの署名欄を配置します。</p>
+    </div>
+    <div style="font-weight: 500; font-size: 0.9rem; color: var(--text-secondary);">
+      テンプレート: <span style="color: #fff;"><%= template.title %></span>
+    </div>
+  </div>
+</div>
+
+<div class="editor-layout">
+  <!-- PDF表示エリア -->
+  <div class="pdf-viewer-panel" id="pdf-viewer-panel">
+    <div id="pdf-viewer">
+      <div id="loading-indicator" style="text-align: center; margin-top: 3rem;">
+        <i data-lucide="loader" class="animate-spin" style="width: 32px; height: 32px; color: var(--color-primary); margin-bottom: 1rem;"></i>
+        <p>PDFドキュメントをレンダリングしています...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 操作サイドバー -->
+  <div class="sidebar-panel">
+    <!-- フィールド追加 -->
+    <div class="glass-card" style="padding: 1.5rem;">
+      <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="layout-template" style="color: var(--color-primary);"></i>
+        フィールドの追加
+      </h3>
+      <p style="font-size: 0.8rem; margin-bottom: 1rem; color: var(--text-secondary);">
+        PDF上にドラッグして配置し、役割を「差し込み（紫）」「甲（青）」「乙（橙）」から選択してください。
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <!-- 差し込み文字（テキストプレフィル用） -->
+        <div class="draggable-field-source" draggable="true" data-type="text" data-is-prefill="true" style="border-color: #a855f7;">
+          <i data-lucide="binary" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px; color: #a855f7;"></i>
+          差し込み文字を追加 (印字用)
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 0.5rem 0;">
+
+        <div class="draggable-field-source" draggable="true" data-type="signature">
+          <i data-lucide="pen-tool" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px;"></i>
+          署名枠を追加 (甲乙)
+        </div>
+        <div class="draggable-field-source" draggable="true" data-type="text">
+          <i data-lucide="type" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px;"></i>
+          テキスト入力欄 (甲乙)
+        </div>
+        <div class="draggable-field-source" draggable="true" data-type="date">
+          <i data-lucide="calendar" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 6px;"></i>
+          日付枠を追加 (甲乙)
+        </div>
+      </div>
+    </div>
+
+    <!-- 設計の保存 -->
+    <div class="glass-card" style="padding: 1.5rem;">
+      <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="save" style="color: var(--color-secondary);"></i>
+        レイアウト保存
+      </h3>
+      <p style="font-size: 0.8rem; margin-bottom: 1.5rem; color: var(--text-secondary);">
+        配置したプレフィル項目および署名枠の座標情報をテンプレート定義として確定します。
+      </p>
+
+      <button onclick="saveTemplateLayout()" class="btn btn-primary" style="width: 100%; font-size: 0.95rem;" id="saveBtn">
+        <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+        テンプレート定義を保存
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+  const pdfUrl = '<%= template.file_path %>';
+  const templateId = '<%= template.id %>';
+  const initialFields = <%- JSON.stringify(fields) %>;
+  let placedFields = []; 
+  let fieldCounter = 0;
+  let draggedType = null;
+  let draggedIsPrefill = false;
+
+  // フィールドの標準サイズ
+  const fieldSizes = {
+    signature: { width: 140, height: 60 },
+    text: { width: 160, height: 32 },
+    date: { width: 120, height: 32 }
+  };
+
+  // PDFレンダリング
+  const loadingTask = pdfjsLib.getDocument(pdfUrl);
+  loadingTask.promise.then(async (pdf) => {
+    document.getElementById('loading-indicator').remove();
+    const container = document.getElementById('pdf-viewer');
+    const numPages = pdf.numPages;
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.25 });
+
+      const pageContainer = document.createElement('div');
+      pageContainer.className = 'pdf-page-container';
+      pageContainer.dataset.page = pageNum;
+      pageContainer.style.width = viewport.width + 'px';
+      pageContainer.style.height = viewport.height + 'px';
+
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      pageContainer.appendChild(canvas);
+      container.appendChild(pageContainer);
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      initDropZone(pageContainer);
+    }
+
+    // 初期データのロードと復元表示
+    loadInitialFields();
+    
+    lucide.createIcons();
+  }).catch(err => {
+    console.error('PDF render error:', err);
+    alert('PDFの読み込みに失敗しました。');
+  });
+
+  // ドラッグ開始
+  const sources = document.querySelectorAll('.draggable-field-source');
+  sources.forEach(source => {
+    source.addEventListener('dragstart', (e) => {
+      draggedType = source.dataset.type;
+      draggedIsPrefill = source.dataset.isPrefill === 'true';
+      e.dataTransfer.setData('text/plain', draggedType);
+    });
+  });
+
+  function initDropZone(pageContainer) {
+    pageContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+
+    pageContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData('text/plain') || draggedType;
+      if (!type) return;
+
+      const rect = pageContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      createField(pageContainer, type, x, y, null, draggedIsPrefill ? 'SYSTEM' : 'SENDER');
+    });
+  }
+
+  // 初期フィールドのロード復元
+  function loadInitialFields() {
+    initialFields.forEach(field => {
+      const pageContainer = document.querySelector(`.pdf-page-container[data-page="${field.page_number}"]`);
+      if (!pageContainer) return;
+
+      const pWidth = pageContainer.clientWidth;
+      const pHeight = pageContainer.clientHeight;
+      const x = (field.x_ratio * pWidth) + (field.width_ratio * pWidth / 2);
+      const y = (field.y_ratio * pHeight) + (field.height_ratio * pHeight / 2);
+
+      const fieldData = {
+        id: field.id,
+        type: field.type,
+        signerRole: field.signer_role,
+        placeholderName: field.placeholder_name || '',
+        pageNumber: field.page_number,
+        xRatio: field.x_ratio,
+        yRatio: field.y_ratio,
+        widthRatio: field.width_ratio,
+        heightRatio: field.height_ratio
+      };
+
+      createFieldDOM(pageContainer, fieldData);
+    });
+  }
+
+  // フィールド作成・登録
+  function createField(pageContainer, type, x, y, initialData = null, defaultRole = 'SENDER') {
+    const pageNum = parseInt(pageContainer.dataset.page);
+    const size = fieldSizes[type];
+    const pWidth = pageContainer.clientWidth;
+    const pHeight = pageContainer.clientHeight;
+    
+    let targetX = x - (size.width / 2);
+    let targetY = y - (size.height / 2);
+    
+    if (targetX < 0) targetX = 0;
+    if (targetY < 0) targetY = 0;
+    if (targetX + size.width > pWidth) targetX = pWidth - size.width;
+    if (targetY + size.height > pHeight) targetY = pHeight - size.height;
+
+    const fieldId = 'tf_' + (++fieldCounter);
+
+    const fieldData = {
+      id: fieldId,
+      type: type,
+      signerRole: defaultRole,
+      placeholderName: defaultRole === 'SYSTEM' ? '差し込み変数名' : '',
+      pageNumber: pageNum,
+      xRatio: targetX / pWidth,
+      yRatio: targetY / pHeight,
+      widthRatio: size.width / pWidth,
+      heightRatio: size.height / pHeight
+    };
+
+    createFieldDOM(pageContainer, fieldData);
+  }
+
+  // DOM作成とイベントバインドの分離
+  function createFieldDOM(pageContainer, data) {
+    const pWidth = pageContainer.clientWidth;
+    const pHeight = pageContainer.clientHeight;
+    const sizeWidth = data.widthRatio * pWidth;
+    const sizeHeight = data.heightRatio * pHeight;
+    const posX = data.xRatio * pWidth;
+    const posY = data.yRatio * pHeight;
+
+    const fieldEl = document.createElement('div');
+    fieldEl.id = data.id;
+    fieldEl.style.width = sizeWidth + 'px';
+    fieldEl.style.height = sizeHeight + 'px';
+    fieldEl.style.left = posX + 'px';
+    fieldEl.style.top = posY + 'px';
+
+    updateFieldClassAndLabel(fieldEl, data);
+    pageContainer.appendChild(fieldEl);
+    placedFields.push(data);
+
+    makeDraggable(fieldEl, pageContainer, data);
+  }
+
+  // 枠のクラスと内包テキストの描画更新
+  function updateFieldClassAndLabel(fieldEl, data) {
+    const labelMap = { signature: '署名枠', text: 'テキスト欄', date: '日付枠' };
+    let roleClass = 'role-sender';
+    let roleLabel = '甲';
+
+    if (data.signerRole === 'RECIPIENT') {
+      roleClass = 'role-recipient';
+      roleLabel = '乙';
+    } else if (data.signerRole === 'SYSTEM') {
+      roleClass = 'role-system';
+      roleLabel = '印字';
+    }
+
+    fieldEl.className = `placed-field ${roleClass}`;
+
+    // プレフィル用の入力枠UI
+    const placeholderHTML = (data.signerRole === 'SYSTEM')
+      ? `<div class="placeholder-input-container">
+           <input type="text" value="${data.placeholderName || ''}" placeholder="CSV列名を設定" onchange="updatePlaceholderName('${data.id}', this.value)">
+         </div>`
+      : '';
+
+    fieldEl.innerHTML = `
+      ${placeholderHTML}
+      <span class="field-text">${labelMap[data.type] || '枠'} (${roleLabel})</span>
+      <button class="delete-btn" type="button" onclick="deleteField('${data.id}')">&times;</button>
+      <div class="role-toggle">
+        <button type="button" class="system-btn ${data.signerRole === 'SYSTEM' ? 'active' : ''}" onclick="setFieldRole('${data.id}', 'SYSTEM')">印字</button>
+        <button type="button" class="sender-btn ${data.signerRole === 'SENDER' ? 'active' : ''}" onclick="setFieldRole('${data.id}', 'SENDER')">甲</button>
+        <button type="button" class="recipient-btn ${data.signerRole === 'RECIPIENT' ? 'active' : ''}" onclick="setFieldRole('${data.id}', 'RECIPIENT')">乙</button>
+      </div>
+    `;
+  }
+
+  // 役割トグル
+  window.setFieldRole = function(fieldId, role) {
+    const data = placedFields.find(f => f.id === fieldId);
+    if (!data) return;
+
+    data.signerRole = role;
+    if (role === 'SYSTEM' && !data.placeholderName) {
+      data.placeholderName = '差し込み変数名';
+    }
+
+    const fieldEl = document.getElementById(fieldId);
+    if (fieldEl) {
+      updateFieldClassAndLabel(fieldEl, data);
+    }
+  };
+
+  // CSV列名プレースホルダー名の変更検知
+  window.updatePlaceholderName = function(fieldId, value) {
+    const data = placedFields.find(f => f.id === fieldId);
+    if (data) {
+      data.placeholderName = value.trim();
+    }
+  };
+
+  // ドラッグ移動
+  function makeDraggable(element, container, data) {
+    let isDragging = false;
+    let startX, startY;
+    let initialLeft, initialTop;
+
+    element.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('delete-btn') || e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      initialLeft = parseFloat(element.style.left);
+      initialTop = parseFloat(element.style.top);
+      element.style.zIndex = 1000;
+      
+      e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      
+      let newLeft = initialLeft + dx;
+      let newTop = initialTop + dy;
+      
+      const cWidth = container.clientWidth;
+      const cHeight = container.clientHeight;
+      const elWidth = element.clientWidth;
+      const elHeight = element.clientHeight;
+      
+      if (newLeft < 0) newLeft = 0;
+      if (newTop < 0) newTop = 0;
+      if (newLeft + elWidth > cWidth) newLeft = cWidth - elWidth;
+      if (newTop + elHeight > cHeight) newTop = cHeight - elHeight;
+      
+      element.style.left = newLeft + 'px';
+      element.style.top = newTop + 'px';
+      
+      data.xRatio = newLeft / cWidth;
+      data.yRatio = newTop / cHeight;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        element.style.zIndex = '';
+      }
+    });
+  }
+
+  window.deleteField = function(fieldId) {
+    const el = document.getElementById(fieldId);
+    if (el) el.remove();
+    placedFields = placedFields.filter(f => f.id !== fieldId);
+  };
+
+  // レイアウト保存送信
+  async function saveTemplateLayout() {
+    const saveBtn = document.getElementById('saveBtn');
+    
+    // システム差し込み文字(SYSTEM)がある場合、プレースホルダー名が設定されているかチェック
+    const invalidSystemFields = placedFields.filter(f => f.signerRole === 'SYSTEM' && (!f.placeholderName || f.placeholderName.trim() === ''));
+    if (invalidSystemFields.length > 0) {
+      alert('「印字」枠にはスプレッドシート（CSV）の列名とマッピングするための「CSV列名」を必ず入力してください。');
+      return;
+    }
+
+    if (!confirm('現在の配置設計（差し込み文字＆署名枠）を保存しますか？')) {
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 16px; height: 16px;"></i> 保存中...';
+    lucide.createIcons();
+
+    try {
+      const response = await fetch(`/api/templates/${templateId}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: placedFields })
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert('テンプレートの配置レイアウトを保存しました。');
+        window.location.href = '/templates';
+      } else {
+        alert('保存失敗: ' + (result.error || '不明なエラー'));
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i data-lucide="save" style="width: 16px; height: 16px;"></i> テンプレート定義を保存';
+        lucide.createIcons();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーが発生しました。');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i data-lucide="save" style="width: 16px; height: 16px;"></i> テンプレート定義を保存';
+      lucide.createIcons();
+    }
+  }
+</script>
+<%- include('partials/footer') %>

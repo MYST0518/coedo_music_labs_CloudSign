@@ -1,0 +1,379 @@
+<%- include('partials/header', { title: 'CSVデータインポート' }) %>
+
+<style>
+  .mapping-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.5rem;
+  }
+  .mapping-table th, .mapping-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+  }
+  .mapping-table th {
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+  }
+  .mapping-table select {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border-color);
+    color: #fff;
+  }
+</style>
+
+<div style="margin-bottom: 1.5rem;">
+  <a href="/templates" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; margin-bottom: 1rem;">
+    <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> テンプレート一覧に戻る
+  </a>
+  <h1>スプレッドシート(CSV) 流し込み</h1>
+  <p>スプレッドシートから書き出したCSVファイルをロードし、宛先情報およびテンプレートの印字項目とマッピングして一括送信します。</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 380px; gap: 2rem; align-items: start;">
+  <!-- メインパネル (CSVアップロード ＆ マッピング) -->
+  <div style="display: flex; flex-direction: column; gap: 2rem;">
+    <!-- CSVドロップゾーン -->
+    <div class="glass-card" style="padding: 2rem;">
+      <h3 style="font-size: 1.1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="table" style="color: var(--color-primary);"></i>
+        1. CSVファイルのアップロード
+      </h3>
+      
+      <div class="drop-zone" id="csvDropZone" onclick="document.getElementById('csvFileInput').click()">
+        <i data-lucide="file-spreadsheet" style="width: 48px; height: 48px; color: var(--color-primary);"></i>
+        <span class="drop-zone-text" id="csvDropText">スプレッドシートからエクスポートしたCSVファイルをここにドラッグ＆ドロップ、またはクリックして選択</span>
+        <div class="drop-zone-file-info" id="csvFileInfo"></div>
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+      </div>
+    </div>
+
+    <!-- マッピング設定カード (CSV読み込み後に表示) -->
+    <div class="glass-card" id="mappingCard" style="padding: 2rem; display: none;">
+      <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+        <i data-lucide="shuffle" style="color: var(--color-secondary);"></i>
+        2. データ項目のマッピング設定
+      </h3>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.5rem;">
+        アップロードされたCSVの列ヘッダーと、契約書テンプレート側の差し込み印字項目を紐づけてください。
+      </p>
+
+      <!-- 宛先情報のマッピング -->
+      <h4 style="font-size: 0.95rem; margin-top: 1rem; color: #fff; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+        基本宛先情報 (必須)
+      </h4>
+      <table class="mapping-table" style="margin-top: 0.5rem; margin-bottom: 2rem;">
+        <thead>
+          <tr>
+            <th>契約書側の項目</th>
+            <th>CSV側の列（ドロップダウンから選択）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>署名者1 (甲/自分) 氏名</strong></td>
+            <td><select class="csv-col-select" id="senderNameCol" required></select></td>
+          </tr>
+          <tr>
+            <td><strong>署名者1 (甲/自分) メール</strong></td>
+            <td><select class="csv-col-select" id="senderEmailCol" required></select></td>
+          </tr>
+          <tr>
+            <td><strong>署名者2 (乙/相手) 氏名</strong></td>
+            <td><select class="csv-col-select" id="recipientNameCol" required></select></td>
+          </tr>
+          <tr>
+            <td><strong>署名者2 (乙/相手) メール</strong></td>
+            <td><select class="csv-col-select" id="recipientEmailCol" required></select></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- プレフィルテキスト項目のマッピング -->
+      <% if (prefillFields.length > 0) { %>
+        <h4 style="font-size: 0.95rem; color: #fff; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+          契約書本文への差し込み印字項目
+        </h4>
+        <table class="mapping-table" style="margin-top: 0.5rem; margin-bottom: 1rem;">
+          <thead>
+            <tr>
+              <th>テンプレート内の差し込みキー</th>
+              <th>CSV側の列（マッピング対象）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% prefillFields.forEach(pf => { %>
+              <tr>
+                <td><strong><%= pf.placeholder_name %></strong></td>
+                <td>
+                  <select class="csv-col-select prefill-map-select" data-placeholder="<%= pf.placeholder_name %>">
+                    <option value="">-- 印字しない --</option>
+                  </select>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 2rem;">
+          ※このテンプレートには事前印字用の「印字」枠は設定されていません（署名枠のみが配置されます）。
+        </p>
+      <% } %>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 2rem;">
+        <button onclick="executeBulkImport()" class="btn btn-primary" id="executeBtn" style="padding: 0.75rem 2rem; font-size: 1rem; box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);">
+          <i data-lucide="play" style="width: 18px; height: 18px;"></i>
+          一括生成 ＆ 送信を実行
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- サイドバー (テンプレート情報 ＆ ガイド) -->
+  <div class="sidebar-panel">
+    <div class="glass-card" style="padding: 1.5rem;">
+      <h3 style="font-size: 1.05rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
+        <i data-lucide="layout-template" style="color: var(--color-primary);"></i>
+        対象テンプレート
+      </h3>
+      <p style="font-weight: bold; color: #fff; margin-bottom: 1rem;"><%= template.title %></p>
+      
+      <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+        <div>テンプレートID:</div>
+        <div style="font-family: monospace; word-break: break-all; color: #fff;"><%= template.id %></div>
+      </div>
+    </div>
+
+    <div class="glass-card" style="padding: 1.5rem;">
+      <h3 style="font-size: 1.05rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem; color: var(--color-warning);">
+        <i data-lucide="alert-triangle"></i>
+        注意事項
+      </h3>
+      <ul style="padding-left: 1.1rem; font-size: 0.75rem; color: var(--text-secondary); display: flex; flex-direction: column; gap: 0.5rem;">
+        <li>CSVファイルのエンコーディングは **UTF-8** を推奨します。</li>
+        <li>1行目は必ず「列タイトル（ヘッダー）」にしてください。</li>
+        <li>宛先情報が空欄の行はスキップされます。</li>
+        <li>送信を実行すると、各行ごとに契約書PDFが自動合成され、署名待ちURLが自動で一括発行されます。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+  let csvHeaders = [];
+  let selectedCSVFile = null;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const csvDropZone = document.getElementById('csvDropZone');
+    const csvFileInput = document.getElementById('csvFileInput');
+    const csvFileInfo = document.getElementById('csvFileInfo');
+    const csvDropText = document.getElementById('csvDropText');
+
+    if (csvDropZone) {
+      csvDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        csvDropZone.classList.add('drag-over');
+      });
+
+      ['dragleave', 'dragend'].forEach(type => {
+        csvDropZone.addEventListener(type, () => {
+          csvDropZone.classList.remove('drag-over');
+        });
+      });
+
+      csvDropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        csvDropZone.classList.remove('drag-over');
+
+        if (e.dataTransfer.files.length > 0) {
+          const file = e.dataTransfer.files[0];
+          if (file.name.endsWith('.csv')) {
+            selectedCSVFile = file;
+            updateCSVFileInfo(file);
+            parseCSVHeaders(file);
+          } else {
+            alert('CSVファイル (.csv) を選択してください。');
+          }
+        }
+      });
+    }
+
+    if (csvFileInput) {
+      csvFileInput.addEventListener('change', () => {
+        if (csvFileInput.files.length > 0) {
+          const file = csvFileInput.files[0];
+          selectedCSVFile = file;
+          updateCSVFileInfo(file);
+          parseCSVHeaders(file);
+        }
+      });
+    }
+
+    function updateCSVFileInfo(file) {
+      csvFileInfo.textContent = `読み込み完了: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      csvFileInfo.style.display = 'block';
+      csvDropText.style.display = 'none';
+    }
+  });
+
+  // CSVヘッダーをパースしてUIを展開
+  function parseCSVHeaders(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split(/\r\n|\n/);
+      if (lines.length === 0 || lines[0].trim() === '') {
+        alert('CSVファイルが空、またはヘッダー行がありません。');
+        return;
+      }
+
+      // 1行目のパース
+      csvHeaders = parseCSVLine(lines[0]);
+      
+      // 各セレクトボックスの中身を構築
+      buildSelectOptions(csvHeaders);
+      
+      // マッピング入力エリアを表示
+      document.getElementById('mappingCard').style.display = 'block';
+      document.getElementById('mappingCard').scrollIntoView({ behavior: 'smooth' });
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  // 二重引用符対応のCSVヘッダースプリッター
+  function parseCSVLine(line) {
+    const result = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        inQuotes = !inQuotes;
+      } else if (c === ',' && !inQuotes) {
+        result.push(cur.trim());
+        cur = "";
+      } else {
+        cur += c;
+      }
+    }
+    result.push(cur.trim());
+    return result.filter(h => h !== '');
+  }
+
+  // セレクトボックスにオプションを挿入
+  function buildSelectOptions(headers) {
+    const selectElements = document.querySelectorAll('.csv-col-select');
+    selectElements.forEach(select => {
+      // 既存のオプションをクリア (prefill-map-selectは「印字しない」を先頭に残す)
+      const hasPrefill = select.classList.contains('prefill-map-select');
+      select.innerHTML = hasPrefill ? '<option value="">-- 印字しない --</option>' : '';
+
+      headers.forEach(h => {
+        const option = document.createElement('option');
+        option.value = h;
+        option.textContent = h;
+        select.appendChild(option);
+      });
+
+      // 自動インテリジェントマッピングの試み (名前でのマッチング)
+      const placeholder = select.dataset.placeholder;
+      const id = select.id;
+      
+      let matchedHeader = '';
+      if (id === 'senderNameCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('名') || h.includes('氏'))) || headers.find(h => h.includes('差出') || h.includes('自分') || h.includes('送信'));
+      else if (id === 'senderEmailCol') matchedHeader = headers.find(h => h.includes('甲') && (h.includes('メール') || h.includes('アドレス'))) || headers.find(h => h.includes('差出') || h.includes('自分') || h.includes('送信')) && headers.find(h => h.includes('メール'));
+      else if (id === 'recipientNameCol') matchedHeader = headers.find(h => h.includes('乙') && (h.includes('名') || h.includes('氏'))) || headers.find(h => h.includes('相手') || h.includes('受信') || h.includes('宛先'));
+      else if (id === 'recipientEmailCol') matchedHeader = headers.find(h => h.includes('乙') && (h.includes('メール') || h.includes('アドレス'))) || headers.find(h => h.includes('相手') || h.includes('受信') || h.includes('宛先')) && headers.find(h => h.includes('メール'));
+      else if (placeholder) {
+        matchedHeader = headers.find(h => h === placeholder) || headers.find(h => h.includes(placeholder));
+      }
+
+      if (matchedHeader) {
+        select.value = matchedHeader;
+      }
+    });
+  }
+
+  // 一括インポート・送信処理
+  async function executeBulkImport() {
+    const executeBtn = document.getElementById('executeBtn');
+    
+    // バリデーション
+    const senderNameCol = document.getElementById('senderNameCol').value;
+    const senderEmailCol = document.getElementById('senderEmailCol').value;
+    const recipientNameCol = document.getElementById('recipientNameCol').value;
+    const recipientEmailCol = document.getElementById('recipientEmailCol').value;
+
+    if (!senderNameCol || !senderEmailCol || !recipientNameCol || !recipientEmailCol) {
+      alert('基本宛先情報のマッピングをすべて選択してください。');
+      return;
+    }
+
+    if (!selectedCSVFile) {
+      alert('CSVファイルをアップロードしてください。');
+      return;
+    }
+
+    // プレフィルマッピングの取得
+    const prefillMap = {};
+    const prefillSelects = document.querySelectorAll('.prefill-map-select');
+    prefillSelects.forEach(select => {
+      const ph = select.dataset.placeholder;
+      const csvVal = select.value;
+      if (csvVal) {
+        prefillMap[ph] = csvVal;
+      }
+    });
+
+    const mapping = {
+      prefillMap,
+      senderNameCol,
+      senderEmailCol,
+      recipientNameCol,
+      recipientEmailCol
+    };
+
+    if (!confirm('CSVの全データに対して、契約書の自動生成 ＆ 一括送信を開始します。よろしいですか？')) {
+      return;
+    }
+
+    executeBtn.disabled = true;
+    executeBtn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width: 18px; height: 18px;"></i> 一括処理中...';
+    lucide.createIcons();
+
+    const formData = new FormData();
+    formData.append('csvFile', selectedCSVFile);
+    formData.append('mapping', JSON.stringify(mapping));
+
+    try {
+      const response = await fetch(`/api/templates/${templateId}/import-submit`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        alert(`一括処理が完了しました！\n正常に ${result.count} 件の契約書が作成・送信されました。`);
+        window.location.href = '/';
+      } else {
+        alert('処理失敗: ' + (result.error || '不明なエラー'));
+        executeBtn.disabled = false;
+        executeBtn.innerHTML = '<i data-lucide="play" style="width: 18px; height: 18px;"></i> 一括生成 ＆ 送信を実行';
+        lucide.createIcons();
+      }
+    } catch (err) {
+      console.error(err);
+      alert('通信エラーまたは処理エラーが発生しました。');
+      executeBtn.disabled = false;
+      executeBtn.innerHTML = '<i data-lucide="play" style="width: 18px; height: 18px;"></i> 一括生成 ＆ 送信を実行';
+      lucide.createIcons();
+    }
+  }
+</script>
+
+<%- include('partials/footer') %>

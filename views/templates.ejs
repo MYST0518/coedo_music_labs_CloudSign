@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: 'ダッシュボード' }) %>
+<%- include('partials/header', { title: 'テンプレート管理' }) %>
 
 <style>
   /* 画面全体ドラッグドロップオーバーレイ */
@@ -62,106 +62,66 @@
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
   <div>
     <div style="display: inline-flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-      <span class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; pointer-events: none;">
+      <a href="/" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">
         <i data-lucide="layout-dashboard" style="width: 12px; height: 12px; vertical-align: middle;"></i> 契約一覧
-      </span>
-      <a href="/templates" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;">
-        <i data-lucide="layout-template" style="width: 12px; height: 12px; vertical-align: middle;"></i> テンプレート
       </a>
+      <span class="btn btn-primary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem; pointer-events: none;">
+        <i data-lucide="layout-template" style="width: 12px; height: 12px; vertical-align: middle;"></i> テンプレート
+      </span>
     </div>
-    <h1>契約ドキュメント</h1>
-    <p style="margin-bottom: 0;">アップロードされた契約書、署名ステータスの確認・署名枠配置が行えます。</p>
+    <h1>契約書テンプレート</h1>
+    <p style="margin-bottom: 0;">スプレッドシート（CSV）から流し込むための契約ひな形の登録・管理を行えます。</p>
   </div>
   <button class="btn btn-primary" onclick="openModal()">
-    <i data-lucide="plus" style="width: 18px; height: 18px;"></i> 新規契約書アップロード
+    <i data-lucide="plus" style="width: 18px; height: 18px;"></i> テンプレートPDF登録
   </button>
 </div>
 
 <div class="glass-card" style="padding: 1.5rem; margin-bottom: 2rem;">
   <div style="font-size: 0.95rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem;">
     <i data-lucide="info" style="color: var(--color-primary); flex-shrink: 0;"></i>
-    <span><strong>ヒント:</strong> この画面のどこにでも直接PDFファイルをドラッグ＆ドロップするだけで、すばやくアップロード画面を起動できます。</span>
+    <span><strong>スプレッドシート連携手順:</strong> 1.PDF登録 ➔ 2.配置編集（差し込み文字位置＆署名枠） ➔ 3.スプレッドシートからCSV書き出し ➔ 4.CSV流し込み送信</span>
   </div>
 </div>
 
 <div class="dashboard-container">
-  <% if (contracts.length === 0) { %>
+  <% if (templates.length === 0) { %>
     <div style="text-align: center; padding: 5rem 1rem; color: var(--text-secondary); border: 2px dashed rgba(255,255,255,0.05); border-radius: 12px; background: rgba(0,0,0,0.1);">
-      <i data-lucide="file-text" style="width: 48px; height: 48px; margin-bottom: 1.5rem; opacity: 0.5; color: var(--color-primary);"></i>
-      <h3 style="color: #fff; margin-bottom: 0.5rem; font-size: 1.2rem;">契約書がありません</h3>
-      <p style="margin-bottom: 1.5rem; font-size: 0.9rem;">新規アップロードボタンを押すか、PDFをここにドロップして開始してください。</p>
+      <i data-lucide="layout-template" style="width: 48px; height: 48px; margin-bottom: 1.5rem; opacity: 0.5; color: var(--color-primary);"></i>
+      <h3 style="color: #fff; margin-bottom: 0.5rem; font-size: 1.2rem;">テンプレートが登録されていません</h3>
+      <p style="margin-bottom: 1.5rem; font-size: 0.9rem;">PDFファイルをここにドロップするか、登録ボタンからひな形PDFをアップロードしてください。</p>
     </div>
   <% } else { %>
     <div class="table-container">
       <table>
         <thead>
           <tr>
-            <th>契約書タイトル</th>
-            <th>宛先 (署名者)</th>
-            <th>ステータス</th>
-            <th>作成日時</th>
+            <th>テンプレート名</th>
+            <th>登録日時</th>
             <th style="text-align: right;">アクション</th>
           </tr>
         </thead>
         <tbody>
-          <% contracts.forEach(contract => { %>
+          <% templates.forEach(tmpl => { %>
             <tr>
-              <td style="font-weight: 600;"><%= contract.title %></td>
-              <td>
-                <% if (contract.signers_info) { %>
-                  <% const infos = contract.signers_info.split(', '); %>
-                  <% const emails = contract.signers_emails ? contract.signers_emails.split(', ') : []; %>
-                  <% infos.forEach((info, index) => { %>
-                    <div style="font-size: 0.85rem; margin-bottom: 2px;">
-                      <% if (info.includes('(SENDER)')) { %>
-                        <span style="color: var(--color-primary); font-weight: 600;">[甲]</span>
-                        <span><%= info.replace(' (SENDER)', '') %></span>
-                      <% } else { %>
-                        <span style="color: var(--color-warning); font-weight: 600;">[乙]</span>
-                        <span><%= info.replace(' (RECIPIENT)', '') %></span>
-                      <% } %>
-                      <% if (emails[index]) { %>
-                        <span style="color: var(--text-muted); font-size: 0.75rem;">(<%= emails[index] %>)</span>
-                      <% } %>
-                    </div>
-                  <% }) %>
-                <% } else { %>
-                  <span style="color: var(--text-muted); font-size: 0.85rem;">未設定</span>
-                <% } %>
-              </td>
-              <td>
-                <% if (contract.status === 'DRAFT') { %>
-                  <span class="badge badge-draft">下書き</span>
-                <% } else if (contract.status === 'SENT') { %>
-                  <span class="badge badge-sent">署名手続き中</span>
-                <% } else if (contract.status === 'SIGNED') { %>
-                  <span class="badge badge-signed">締結完了</span>
-                <% } else { %>
-                  <span class="badge badge-draft"><%= contract.status %></span>
-                <% } %>
-              </td>
+              <td style="font-weight: 600; font-size: 1rem;"><%= tmpl.title %></td>
               <td style="font-size: 0.85rem; color: var(--text-secondary);">
-                <%= new Date(contract.created_at).toLocaleString('ja-JP') %>
+                <%= new Date(tmpl.created_at).toLocaleString('ja-JP') %>
               </td>
               <td style="text-align: right;">
-                <div style="display: inline-flex; gap: 0.5rem; justify-content: flex-end;">
-                  <% if (contract.status === 'DRAFT') { %>
-                    <a href="/contracts/edit/<%= contract.id %>" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-                      <i data-lucide="edit" style="width: 14px; height: 14px;"></i> 編集
-                    </a>
-                  <% } else { %>
-                    <a href="/contracts/detail/<%= contract.id %>" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-                      <i data-lucide="eye" style="width: 14px; height: 14px;"></i> 詳細
-                    </a>
-                  <% } %>
+                <div style="display: inline-flex; gap: 0.5rem; justify-content: flex-end; align-items: center;">
+                  <!-- 一括流し込み画面へ -->
+                  <a href="/templates/<%= tmpl.id %>/import" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--color-secondary); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);">
+                    <i data-lucide="table-properties" style="width: 14px; height: 14px;"></i> CSV流し込み送信
+                  </a>
+                  
+                  <!-- ビジュアル配置編集へ -->
+                  <a href="/templates/edit/<%= tmpl.id %>" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                    <i data-lucide="layout-grid" style="width: 14px; height: 14px;"></i> 配置の編集
+                  </a>
 
-                  <% if (contract.status === 'SIGNED' && contract.signed_file_path) { %>
-                    <a href="<%= contract.signed_file_path %>" download class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--color-secondary);">
-                      <i data-lucide="download" style="width: 14px; height: 14px;"></i> ダウンロード
-                    </a>
-                  <% } %>
-
-                  <button onclick="deleteContract('<%= contract.id %>')" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                  <!-- 削除ボタン -->
+                  <button onclick="deleteTemplate('<%= tmpl.id %>')" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
                     <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                   </button>
                 </div>
@@ -178,7 +138,7 @@
 <div class="modal-backdrop" id="uploadModal" onclick="closeModalOnBackdrop(event)">
   <div class="modal-content">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-      <h2 style="margin-bottom: 0;">契約書PDFアップロード</h2>
+      <h2 style="margin-bottom: 0;">ひな形テンプレート登録</h2>
       <button class="btn btn-secondary" onclick="closeModal()" style="padding: 0.25rem 0.5rem; border: none; background: transparent;">
         <i data-lucide="x"></i>
       </button>
@@ -186,8 +146,8 @@
     
     <form id="uploadForm" onsubmit="handleUpload(event)">
       <div class="form-group">
-        <label for="contractTitle">契約書名 (未入力の場合はファイル名)</label>
-        <input type="text" id="contractTitle" placeholder="例: 機密保持契約書_株式会社◯◯">
+        <label for="templateTitle">テンプレート名 (未入力の場合はファイル名)</label>
+        <input type="text" id="templateTitle" placeholder="例: 【ひな形】音楽原盤制作契約書">
       </div>
       
       <div class="form-group">
@@ -203,7 +163,7 @@
       <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 2rem;">
         <button type="button" class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
         <button type="submit" class="btn btn-primary" id="submitBtn">
-          <i data-lucide="upload" style="width: 16px; height: 16px;"></i> アップロード
+          <i data-lucide="upload" style="width: 16px; height: 16px;"></i> テンプレートを登録
         </button>
       </div>
     </form>
@@ -214,8 +174,8 @@
 <div class="drag-drop-overlay" id="dragDropOverlay">
   <div class="drag-drop-overlay-content">
     <i data-lucide="file-up" class="bounce-icon" style="width: 56px; height: 56px; color: var(--color-primary);"></i>
-    <h3 style="font-size: 1.25rem; margin-bottom: 0; color: #fff;">ここにPDFをドロップしてアップロード</h3>
-    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0;">ドロップすると自動でアップロード画面を起動します</p>
+    <h3 style="font-size: 1.25rem; margin-bottom: 0; color: #fff;">ここにひな形PDFをドロップして登録</h3>
+    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0;">ドロップすると自動でテンプレート登録画面を起動します</p>
   </div>
 </div>
 
@@ -247,16 +207,14 @@
     }
   }
 
-  // ドラッグ＆ドロップ機能のイベント初期化
   document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('pdfFile');
     const fileInfo = document.getElementById('fileInfo');
     const dropZoneText = document.getElementById('dropZoneText');
-    const titleInput = document.getElementById('contractTitle');
+    const titleInput = document.getElementById('templateTitle');
     const overlay = document.getElementById('dragDropOverlay');
 
-    // 1. アップロードモーダル内のインラインドロップゾーンの制御
     if (dropZone) {
       dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -305,7 +263,6 @@
       }
     }
 
-    // 2. 画面全体（Window）ドラッグ＆ドロップの制御
     if (overlay) {
       let dragCounter = 0;
 
@@ -337,7 +294,6 @@
         if (e.dataTransfer.files.length > 0) {
           const file = e.dataTransfer.files[0];
           if (file.type === 'application/pdf') {
-            // モーダルを開いてバインド
             openModal();
             fileInput.files = e.dataTransfer.files;
             updateFileInfo(file);
@@ -351,7 +307,7 @@
 
   async function handleUpload(event) {
     event.preventDefault();
-    const title = document.getElementById('contractTitle').value;
+    const title = document.getElementById('templateTitle').value;
     const fileInput = document.getElementById('pdfFile');
     const submitBtn = document.getElementById('submitBtn');
 
@@ -365,40 +321,40 @@
     lucide.createIcons();
 
     const formData = new FormData();
-    formData.append('pdf', fileInput.files[0]);
+    formData.append('templatePdf', fileInput.files[0]);
     formData.append('title', title);
 
     try {
-      const response = await fetch('/api/contracts/upload', {
+      const response = await fetch('/api/templates/upload', {
         method: 'POST',
         body: formData
       });
 
       const result = await response.json();
       if (response.ok) {
-        window.location.href = `/contracts/edit/${result.id}`;
+        window.location.href = `/templates/edit/${result.id}`;
       } else {
-        alert('アップロード失敗: ' + (result.error || '不明なエラー'));
+        alert('登録失敗: ' + (result.error || '不明なエラー'));
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i data-lucide="upload" style="width: 16px; height: 16px;"></i> アップロード';
+        submitBtn.innerHTML = '<i data-lucide="upload" style="width: 16px; height: 16px;"></i> テンプレートを登録';
         lucide.createIcons();
       }
     } catch (err) {
       console.error(err);
       alert('通信エラーが発生しました。');
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i data-lucide="upload" style="width: 16px; height: 16px;"></i> アップロード';
+      submitBtn.innerHTML = '<i data-lucide="upload" style="width: 16px; height: 16px;"></i> テンプレートを登録';
       lucide.createIcons();
     }
   }
 
-  async function deleteContract(id) {
-    if (!confirm('この契約書を削除しますか？紐づく署名情報やPDFも完全に削除されます。')) {
+  async function deleteTemplate(id) {
+    if (!confirm('このテンプレートを削除しますか？紐づくフィールド定義もすべて削除されます。')) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/contracts/${id}/delete`, {
+      const response = await fetch(`/api/templates/${id}/delete`, {
         method: 'POST'
       });
 

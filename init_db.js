@@ -6,15 +6,7 @@ const fs = require('fs');
 const dataDir = process.env.DATA_DIR || __dirname;
 const dbPath = path.join(dataDir, 'contracts.db');
 
-// 既存のデータベースがある場合は、マイグレーションのため一度削除する
-if (fs.existsSync(dbPath)) {
-  try {
-    fs.unlinkSync(dbPath);
-    console.log('Deleted existing contracts.db for migration.');
-  } catch (err) {
-    console.error('Failed to delete existing database file:', err);
-  }
-}
+// マイグレーションは終わったので、今回はデータベースファイルを削除しない (CREATE TABLE IF NOT EXISTSを使用)
 
 // 必要なディレクトリを作成
 const uploadDir = path.join(dataDir, 'uploads');
@@ -24,6 +16,10 @@ if (!fs.existsSync(uploadDir)) {
 const signedDir = path.join(dataDir, 'uploads', 'signed');
 if (!fs.existsSync(signedDir)) {
   fs.mkdirSync(signedDir, { recursive: true });
+}
+const templateDir = path.join(dataDir, 'uploads', 'templates');
+if (!fs.existsSync(templateDir)) {
+  fs.mkdirSync(templateDir, { recursive: true });
 }
 
 const db = new sqlite3.Database(dbPath, (err) => {
@@ -48,7 +44,7 @@ db.serialize(() => {
     )
   `);
 
-  // signers テーブル (SENDER = 自分, RECIPIENT = 相手 のroleを追加)
+  // signers テーブル
   db.run(`
     CREATE TABLE IF NOT EXISTS signers (
       id TEXT PRIMARY KEY,
@@ -64,12 +60,12 @@ db.serialize(() => {
     )
   `);
 
-  // fields テーブル (どの署名者の枠かを識別する signer_id カラムを追加)
+  // fields テーブル
   db.run(`
     CREATE TABLE IF NOT EXISTS fields (
       id TEXT PRIMARY KEY,
       contract_id TEXT NOT NULL,
-      signer_id TEXT NOT NULL, -- signers.id に紐づけ
+      signer_id TEXT NOT NULL,
       type TEXT NOT NULL, -- 'signature', 'text', 'date'
       page_number INTEGER NOT NULL,
       x_ratio REAL NOT NULL,
@@ -82,6 +78,34 @@ db.serialize(() => {
     )
   `);
 
-  console.log('Database tables initialized successfully with new schema.');
+  // templates テーブル (テンプレート機能用)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  // template_fields テーブル (プレフィル差し込み文字や署名枠のメタデータ)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS template_fields (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL,
+      type TEXT NOT NULL, -- 'prefill' (印字), 'signature' (署名枠), 'text' (テキスト枠), 'date' (日付枠)
+      signer_role TEXT NOT NULL, -- 'SENDER' (甲), 'RECIPIENT' (乙), 'SYSTEM' (差し込み印字)
+      placeholder_name TEXT, -- CSVヘッダーとマッピングする項目名 (例: '乙住所')
+      page_number INTEGER NOT NULL,
+      x_ratio REAL NOT NULL,
+      y_ratio REAL NOT NULL,
+      width_ratio REAL NOT NULL,
+      height_ratio REAL NOT NULL,
+      FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
+    )
+  `);
+
+  console.log('Database tables initialized successfully with templates schema.');
   db.close();
 });
