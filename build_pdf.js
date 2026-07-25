@@ -38,7 +38,14 @@ async function buildContractPdf(recipientName = '', recipientAddress = '') {
   // 乙の名前を本文の○○部分に埋め込む
   const recipientLabel = recipientName ? recipientName : '　　　　　　　　';
 
-  const embedText = `「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ-」音楽原盤制作契約書
+  // 作成日（本日）の日付文字列を生成 (2026年＝令和8年)
+  const now = new Date();
+  const reiwaYear = now.getFullYear() - 2018; // 2026 - 2018 = 8
+  const month = now.getMonth() + 1;
+  const date = now.getDate();
+  const formattedDate = `令和${reiwaYear}年${month}月${date}日`;
+
+  const embedText = `「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.N-」音楽原盤制作契約書
 
 本契約は、株式会社Coedo Music Labo（以下「甲」という）と、${recipientLabel}（以下「乙」という）との間において、「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ- 」（以下「本件原盤」という）の制作およびその利用に関し、以下の通り締結する。
 
@@ -113,7 +120,7 @@ async function buildContractPdf(recipientName = '', recipientAddress = '') {
 --------------------------------------------------------------------------------
 本契約の成立を証するため、本書2通を作成し、甲乙署名のうえ、各1通を保有する。
 
-令和8年　　月　　日
+${formattedDate}
 
 甲：　埼玉県ふじみ野市上福岡3-16-10朝日パリオ上福岡703
 　　　株式会社Coedo Music Labo
@@ -328,15 +335,6 @@ async function buildContractPdf(recipientName = '', recipientAddress = '') {
     borderColor: rgb(0.6, 0.6, 0.6),
     borderWidth: 0.5,
   });
-
-  currentY -= 65;
-
-  // ---- 日付（手書きスペース）----
-  if (fontPath) {
-    page.drawText('令和　　年　　月　　日', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont, color: rgb(0, 0, 0) });
-  } else {
-    page.drawText('Date: ___/___/___', { x: indent, y: currentY - sigFontSize, size: sigFontSize, font: customFont });
-  }
 
   return await pdfDoc.save();
 }
