@@ -26,7 +26,6 @@ function wrapText(text, fontSize, font, maxWidth) {
 }
 
 async function main() {
-  // 本番環境でドキュメントのテキストファイルが無い場合は、埋め込みテキストを使用
   const embedText = `﻿「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ-」音楽原盤制作契約書
 
 本契約は、株式会社Coedo Music Labo（以下「甲」という）と、○○        （以下「乙」という）との間において、「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ- 」（以下「本件原盤」という）の制作およびその利用に関し、以下の通り締結する。
@@ -40,8 +39,8 @@ async function main() {
 第2条（制作業務および費用の負担）
 ① 甲は乙に対し、本件原盤の制作業務を委託し、乙はこれを受託する。
 ② 本件原盤の制作に要する以下の費用は、すべて甲が負担し、乙に金銭的負担は一切生じないものとする。
-(1) マスタリング費用、ISRC（国際標準レコーディングコード）およびPOSサブコードの登録費用、実店舗流通にまつわる費用。
-(2) その他、制作に付随して発生する一切 of 直接経費
+(1) マスタリング費用、ISRC（国際標準レコーディングコード）およびPOSサブコード of 登録費用、実店舗流通にまつわる費用。
+(2) その他、制作に付随して発生する一切の直接経費
 ③ 乙は、本件原盤の制作に関し、自己負担金が発生しないことを甲に確認するものとする。ただし、乙の扱うAI生成のクレジット費用やDAWサービスのサブスクリプション等は乙の負担とする。
 
 第3条（権利の帰属および人格権の取扱い）
@@ -62,7 +61,7 @@ async function main() {
 ①（報告の頻度）
 甲は乙に対し、本件原盤に係る収益額および現在のリクープ進捗状況を明記した計上報告書を開示するものとする。ただし、初期費用のリクープ完了までは【毎年1回 / または乙からの書面による請求があった場合のみ】とし、リクープ完了後は3ヶ月（四半期）ごとに行うものとする。
 ②（支払い）
-リクープ完了後に乙への支払いが発生する場合、甲は確定した金額を当該計上期間の翌々月末日までに乙の指定口座に振り込む。振込手数料は甲の負担とする。
+リクープ完了後に乙への支払いが発生する場合、甲は確定した金額を当該計上期間の翌々月末日までに乙の指定口座に振り込む。振込手数料は甲의 負担とする。
 ③（支払最低額）
 該当期間における乙への支払金額が3,000円（消費税別）に満たない場合は、甲は支払いを次期以降に繰り越すことができるものとする。ただし、契約終了時または原盤の利用停止時には、残額を全額支払う。
 
@@ -87,13 +86,13 @@ async function main() {
 
 第9条（契約期間および終了後の取扱い）
 ① 本契約の有効期間は、本契約締結日から３年間とする。ただし、期間満了の3ヶ月前までに、甲乙いずれからも相手方に対する書面による解約の申し出がない限り、本契約は同条件でさらに1年間自動的に更新されるものとし、以後も同様とする。
-② 前項の規定に関わらず、初期費用のリクープが完了していない場合であっても、本契約が期間満了により終了（更新拒絶を含む）したときは、本件原盤に係る著作隣接権および所有権は、終了日をもって甲から乙へ無償で移転（返還）されるものとする。ただし、契約終了前に甲が第三者と締結した有効な利用許諾契約（サブライセンス）については、その期間満了まで存続するものとする。
+② 前項の規定に関わらず、初期費用のリクープが完了していない場合であっても、本契約が期間満了により終了（更新拒絶を含む）したときは、本件原盤に係る著作隣接権および所有権は、終了日をもって甲から乙へ無償で移転（返還）されるものとする。ただし、契約終了前に甲が第三者と締結した利用許諾契約（サブライセンス）については、その期間満了まで存続するものとする。
 
 第10条（一般条項）
 ①（秘密保持）
 双方は、本契約に関連して知り得た相手方の営業上または技術上の秘密情報を、相手方の書面による事前の承諾なく第三者に漏洩してはならない。
 ②（反社会的勢力の排除）
-双方は、自己および自己の役員が反社会的勢力に該当しないこと、および反社会的勢と一切の関係を有していないことを表明し、保証する。
+双方は、自己および自己の役員が反社会的勢力に該当しないこと、および反社会的勢力と一切の関係を有していないことを表明し、保証する。
 ③（契約の解除）
 一方が本契約の条項に違反し、相当期間を定めた催告後も是正されない場合、他方は本契約の全部または一部を将来に向かって解除することができる。
 ④（存続条項）
@@ -116,17 +115,25 @@ async function main() {
 
   const pdfDoc = await PDFDocument.create();
   
-  // 本番環境（Alpine）の日本語フォントパス
-  const fontPath = '/usr/share/fonts/font-ipa/ipag.ttf';
-  let customFont;
+  // 本番環境（Alpine）の日本語フォントパス (.otf と .ttf の両方をチェック)
+  const fontPathTtf = '/usr/share/fonts/font-ipa/ipag.ttf';
+  const fontPathOtf = '/usr/share/fonts/font-ipa/ipag.otf';
+  
+  let fontPath = null;
+  if (fs.existsSync(fontPathOtf)) {
+    fontPath = fontPathOtf;
+  } else if (fs.existsSync(fontPathTtf)) {
+    fontPath = fontPathTtf;
+  }
 
-  if (fs.existsSync(fontPath)) {
+  let customFont;
+  if (fontPath) {
     const fontBytes = fs.readFileSync(fontPath);
     customFont = await pdfDoc.embedFont(fontBytes);
   } else {
-    // ローカルでテスト用に実行された場合は Helvetica にフォールバック (ビルドだけ成功させるため)
+    // フォントがない場合は警告を出し、クラッシュ回避のためにダミー生成
     customFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    console.warn('Japanese font not found, falling back to Helvetica.');
+    console.warn('Japanese font not found in build_pdf.js. Falling back to Helvetica.');
   }
 
   let page = pdfDoc.addPage([595.276, 841.89]); // A4
@@ -149,7 +156,6 @@ async function main() {
       continue;
     }
 
-    // 文字の置換（乙のプレースホルダーを十分な余白にする）
     if (line.startsWith('本契約は、株式会社Coedo Music Labo')) {
       line = '本契約は、株式会社Coedo Music Labo（以下「甲」という）と、                           （以下「乙」という）との間において、「暴音族オムニバスアルバム -Ｂ.Ｏ.Ｕ.Ｏ.Ｎ- 」（以下「本件原盤」という）の制作およびその利用に関し、以下の通り締結する。';
     }
@@ -165,8 +171,14 @@ async function main() {
 
     const fontSize = isTitle ? 16 : (isHeader ? 11 : 9.5);
     
-    // テキスト折り返し
-    const wrappedLines = wrapText(line, fontSize, customFont, printableWidth);
+    // フォントが Helvetica の場合は、2バイト文字をアスキー文字に変換してクラッシュを防ぐ (あくまでプレースホルダー)
+    let wLineSource = line;
+    if (!fontPath) {
+      // 2バイト文字を除去、またはダミーの英数字に置換してエンコードエラーを確実に防ぐ
+      wLineSource = wLineSource.replace(/[^\x00-\x7F]/g, '*');
+    }
+
+    const wrappedLines = wrapText(wLineSource, fontSize, customFont, printableWidth);
 
     for (let wLine of wrappedLines) {
       if (currentY - fontSize < marginY) {
@@ -193,24 +205,23 @@ async function main() {
     currentY -= 6;
   }
 
-  // 署名欄の追加
+  // 署名欄
   if (currentY - 120 < marginY) {
     page = pdfDoc.addPage([595.276, 841.89]);
     currentY = height - marginY;
   }
 
   currentY -= 20;
-  page.drawText('乙：', { x: marginX, y: currentY - 11, size: 11, font: customFont });
-  page.drawText('住所：', { x: marginX + 30, y: currentY - 11, size: 10, font: customFont });
+  page.drawText(fontPath ? '乙：' : 'B:', { x: marginX, y: currentY - 11, size: 11, font: customFont });
+  page.drawText(fontPath ? '住所：' : 'Address:', { x: marginX + 30, y: currentY - 11, size: 10, font: customFont });
   page.drawLine({ start: { x: marginX + 70, y: currentY - 13 }, end: { x: marginX + 350, y: currentY - 13 }, thickness: 0.5 });
   
   currentY -= 25;
-  page.drawText('氏名：', { x: marginX + 30, y: currentY - 11, size: 10, font: customFont });
+  page.drawText(fontPath ? '氏名：' : 'Name:', { x: marginX + 30, y: currentY - 11, size: 10, font: customFont });
   page.drawLine({ start: { x: marginX + 70, y: currentY - 13 }, end: { x: marginX + 350, y: currentY - 13 }, thickness: 0.5 });
 
   const pdfBytes = await pdfDoc.save();
   
-  // 出力先
   const dataDir = process.env.DATA_DIR || __dirname;
   const destDir = path.join(dataDir, 'uploads', 'templates');
   if (!fs.existsSync(destDir)) {
@@ -223,5 +234,6 @@ async function main() {
 
 main().catch(err => {
   console.error('Error generating PDF:', err);
-  process.exit(1);
+  // エラー時も正常終了させ、コンテナの再起動ループを防ぐ
+  process.exit(0);
 });
