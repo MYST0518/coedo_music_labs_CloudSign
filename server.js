@@ -131,6 +131,45 @@ app.use('/uploads', express.static(path.join(dataDir, 'uploads')));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// -------------------------------------------------------------
+// セキュリティ保護: Basic 認証ミドルウェア
+// （※相手方の署名ページ /sign/ や静的ファイルは認証除外）
+// -------------------------------------------------------------
+const basicAuth = (req, res, next) => {
+  const adminUser = process.env.ADMIN_USER || 'coedo';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'coedo2026';
+
+  // 受信者の署名用ページ、送信・確定API、静的ファイルはパスワードなしでアクセス可能
+  if (
+    req.path.startsWith('/sign/') ||
+    req.path.startsWith('/api/sign/') ||
+    req.path.startsWith('/css/') ||
+    req.path.startsWith('/uploads/') ||
+    req.path === '/favicon.svg'
+  ) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="CML Sign Admin"');
+    return res.status(401).send('認証が必要です (Authentication Required)');
+  }
+
+  const auth = Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+  const user = auth[0];
+  const pass = auth[1];
+
+  if (user === adminUser && pass === adminPassword) {
+    return next();
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="CML Sign Admin"');
+  return res.status(401).send('ユーザー名またはパスワードが正しくありません。');
+};
+
+app.use(basicAuth);
+
 // Multerの設定 (CSVアップロード対応)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
